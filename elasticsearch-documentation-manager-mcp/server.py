@@ -93,22 +93,61 @@ class AppContext:
 @asynccontextmanager
 async def app_lifespan(server: fastmcp) -> AsyncIterator[AppContext]:
     """Manage application lifecycle with type-safe context"""
-    # Initialize on startup
-    
-    # try:
-    #     yield AppContext(db=db)
-    # finally:
-    #     # Cleanup on shutdown
-    #     await db.disconnect()
+    # --- Startup Logic ---
+    logger.info("Executing startup sequence via lifespan...")
+    try:
+        logger.info("Pinging Elasticsearch...")
+        if not await es_client.ping():
+            logger.error(
+                "ERROR: Could not ping Elasticsearch. Check connection and credentials. Dynamic resources will not be registered."
+            )
+            # Decide whether to raise and stop server start
+            # raise RuntimeError("Failed to ping Elasticsearch")
+        else:
+            logger.info("Successfully connected to Elasticsearch.")
+            # Ensure index template exists before registering resources
+            logger.info("Setting up index template...")
+            await _internal_setup_index_template() # Ensure this runs first
+            logger.info("Index template setup complete (or already exists).")
+
+            # Register dynamic resources based on existing indices
+            logger.info("Updating dynamic documentation resources...")
+            await _update_dynamic_doc_resources() # Call the new registration function
+            logger.info("Dynamic documentation resource update complete.")
+
+    except elasticsearch.AuthenticationException:
+        logger.error(
+            "ERROR: Elasticsearch authentication failed. Check ES_USERNAME/ES_PASSWORD."
+        )
+        # raise RuntimeError("Elasticsearch authentication failed")
+    except elasticsearch.ConnectionError as e:
+        logger.error(
+            f"ERROR: Could not connect to Elasticsearch at {ES_HOST}:{ES_PORT}. Error: {e}"
+        )
+        # raise RuntimeError("Failed to connect to Elasticsearch") from e
+    except Exception:
+        logger.exception("ERROR: Unexpected error during Elasticsearch startup check.")
+        # raise RuntimeError("Unexpected startup error") from e
+
+    try:
+        yield AppContext(es_client=es_client) # Yield the context
+    finally:
+        # --- Shutdown Logic ---
+        logger.info("Executing shutdown sequence via lifespan...")
+        if es_client:
+            try:
+                await es_client.close()
+                logger.info("Elasticsearch client closed.")
+            except Exception:
+                logger.exception("Error closing Elasticsearch client during shutdown.")
 # --- Main Execution Block ---
 
 # if __name__ == "__main__":
 #     # Using anyio.run for startup/shutdown management outside of mcp.run()
 #     # as FastMCP might not have built-in lifespan events yet.
-, lifespan=app_lifespan
 
 # --- Initialize FastMCP Server ---
-mcp = fastmcp.FastMCP("elasticsearch-documentation-manager-mcp", app_lifespan=app_lifespan)
+mcp = fastmcp.FastMCP("elasticsearch-documentation-manager-mcp", lifespan=app_lifespan)
 logger.info("FastMCP server initialized.")
 # --- Tool Handlers ---
 
@@ -363,7 +402,7 @@ async def _internal_search_docs(
         A list of raw Elasticsearch hit dictionaries, including '_source'
         and 'highlight', or a list containing an error dictionary on failure.
     """
-    search_pattern = f"{index_prefix}-*" if index_prefix else "*"
+    search_pattern = f"{index_prefix}*" if index_prefix else "*"
     logger.info(
         f"Internal: Searching indices '{search_pattern}' for query: '{query}' using ELSER"
     )
@@ -894,54 +933,5 @@ async def _update_dynamic_doc_resources():
     #except Exception as e:
     #    logger.exception("Failed to register the dynamic documentation resource template.")
 
-
-# --- Startup and Shutdown Logic ---
-
-
-async def startup():
-    """Checks connection to Elasticsearch and sets up resources on server startup."""
-    logger.info("Executing startup sequence...")
-    try:
-        logger.info("Pinging Elasticsearch...")
-        if not await es_client.ping():
-            logger.error(
-                "ERROR: Could not ping Elasticsearch. Check connection and credentials. Dynamic resources will not be registered."
-            )
-            # Decide whether to raise and stop server start
-            # raise RuntimeError("Failed to ping Elasticsearch")
-        else:
-            logger.info("Successfully connected to Elasticsearch.")
-            # Ensure index template exists before registering resources
-            logger.info("Setting up index template...")
-            await _internal_setup_index_template() # Ensure this runs first
-            logger.info("Index template setup complete (or already exists).")
-
-            # Register dynamic resources based on existing indices
-            logger.info("Updating dynamic documentation resources...")
-            await _update_dynamic_doc_resources() # Call the new registration function
-            logger.info("Dynamic documentation resource update complete.")
-
-    except elasticsearch.AuthenticationException:
-        logger.error(
-            "ERROR: Elasticsearch authentication failed. Check ES_USERNAME/ES_PASSWORD."
-        )
-        # raise RuntimeError("Elasticsearch authentication failed")
-    except elasticsearch.ConnectionError as e:
-        logger.error(
-            f"ERROR: Could not connect to Elasticsearch at {ES_HOST}:{ES_PORT}. Error: {e}"
-        )
-        # raise RuntimeError("Failed to connect to Elasticsearch") from e
-    except Exception:
-        logger.exception("ERROR: Unexpected error during Elasticsearch startup check.")
-        # raise RuntimeError("Unexpected startup error") from e
-
-
-async def shutdown():
-    """Closes the Elasticsearch client connection on server shutdown."""
-    logger.info("Executing shutdown sequence...")
-    if es_client:
-        try:
-            await es_client.close()
-            logger.info("Elasticsearch client closed.")
-        except Exception:
-            logger.exception("Error closing Elasticsearch client during shutdown.")
+if __name__ == "__main__":
+    mcp.run(transport = "sse")
