@@ -266,7 +266,7 @@ async def crawl_website_documentation(
 # endregion Prompts
 
 
-# region Crawler Tools
+# region Crawler
 @mcp.tool()
 async def pull_crawler_image() -> str:
     """
@@ -395,9 +395,20 @@ async def stop_crawl(container_id: str) -> str:
 
     return f"Container '{container_id[:12]}' stopped and removed successfully."
 
-# endregion Crawler Tools
 
-# region Searcher Tools
+@mcp.tool()
+async def remove_completed_crawls() -> Dict[str, Any]:
+    """
+    Removes all completed (status 'exited') crawl containers managed by this server.
+    Returns a summary dictionary with 'removed_count' and 'errors'.
+    """
+    logger.info("Tool Shim: Received request to remove completed crawls.")
+    result = await crawler.remove_completed_crawls()
+    return result
+
+# endregion Crawler
+
+# region Searcher
 @mcp.tool()
 async def list_doc_indices() -> list[str]:
     """
@@ -472,7 +483,7 @@ async def update_dynamic_resources():
     logger.info("Finished updating dynamic search resources.")
 
 
-# endregion Searcher Tools
+# endregion Searcher
 
 # region Main Execution
 if __name__ == "__main__":

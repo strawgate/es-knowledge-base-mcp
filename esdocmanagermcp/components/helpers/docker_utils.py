@@ -164,14 +164,14 @@ async def start_container_with_files(
 
 # region Container Info
 async def list_containers(
-    docker_client: aiodocker.Docker, label_filter: str
+    docker_client: aiodocker.Docker, label_filter: str, all_containers: bool = False
 ) -> List[Dict[str, Any]]:
     """Lists containers matching a label filter, returning basic info."""
     try:
         # Filter format: "label=key=value" or just "label=key"
         label_filter_str = label_filter if "=" in label_filter else f"{label_filter}"
         containers = await docker_client.containers.list(
-            all=True, filters={"label": [label_filter_str]}
+            all=all_containers, filters={"label": [label_filter_str]}
         )
         container_list = [
             {

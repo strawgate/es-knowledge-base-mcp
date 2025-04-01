@@ -246,6 +246,65 @@ class Crawler:
             raise ContainerNotFoundError(f"Container '{container_id[:12]}' not found.")
         # Implicitly returns None on success
 
+    async def remove_completed_crawls(self) -> Dict[str, Any]:
+        """
+        Removes all completed (exited) crawl containers managed by this component.
+        Returns a summary of the operation.
+        """
+        logger.info("Attempting to remove completed crawl containers...")
+        removed_count = 0
+        errors = []
+        label_filter = f"{self.MANAGED_BY_LABEL}={self.MANAGED_BY_VALUE}"
+
+        try:
+            # List all managed containers first
+            # Need all_containers=True to see exited ones
+            containers = await docker_utils.list_containers(
+                self.docker_client, label_filter, all_containers=True
+            )
+            logger.debug(f"Found {len(containers)} managed containers (including non-running).")
+
+            for container_info in containers:
+                container_id = container_info.get("id")
+                container_state = container_info.get("state")
+                short_id = container_id[:12] if container_id else "N/A"
+
+                if container_state == "exited":
+                    logger.info(f"Found exited container: {short_id}. Attempting removal...")
+                    try:
+                        # Don't force remove exited containers
+                        removed = await docker_utils.remove_container(
+                            self.docker_client, container_id, force=False
+                        )
+                        if removed:
+                            logger.info(f"Successfully removed container {short_id}.")
+                            removed_count += 1
+                        else:
+                            # This case might indicate the container was already gone
+                            logger.warning(f"Container {short_id} not found during removal attempt, might have been removed already.")
+                            # Optionally add to errors if this is unexpected
+                            # errors.append({"container_id": short_id, "error": "Not found during removal"})
+                    except DockerError as e:
+                        logger.error(f"Failed to remove container {short_id}: {e}")
+                        errors.append({"container_id": short_id, "error": str(e)})
+                    except Exception as e: # Catch unexpected errors
+                        logger.error(f"Unexpected error removing container {short_id}: {e}")
+                        errors.append({"container_id": short_id, "error": f"Unexpected error: {str(e)}"})
+                else:
+                    logger.debug(f"Skipping container {short_id} (state: {container_state}).")
+
+        except DockerError as e:
+            logger.error(f"Error listing containers: {e}")
+            errors.append({"container_id": None, "error": f"Failed to list containers: {str(e)}"})
+        except Exception as e: # Catch unexpected errors during listing
+            logger.error(f"Unexpected error during container listing: {e}")
+            errors.append({"container_id": None, "error": f"Unexpected error during listing: {str(e)}"})
+
+
+        result = {"removed_count": removed_count, "errors": errors}
+        logger.info(f"Completed removal process. Removed: {removed_count}, Errors: {len(errors)}.")
+        return result
+
     # endregion Public Methods
 
 
