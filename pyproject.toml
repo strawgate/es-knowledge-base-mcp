@@ -1,5 +1,5 @@
 [project]
-name = "elasticsearch-documentation-manager-mcp"
+name = "esdocmanagermcp"
 version = "0.1.0"
 description = "An MCP server for crawling documentation, writing it to Elasticsearch for vector search retrieval by an LLM."
 authors = [
@@ -9,16 +9,17 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "elasticsearch (>=8.17.2,<9.0.0)",
-    "pyyaml (>=6.0.2,<7.0.0)",
+    "pyyaml>=6.0.2,<7.0.0",
     "anyio (>=4.9.0,<5.0.0)",
     "fastmcp>=0.4.1",
     "aiohttp>=3.11.14",
-    "docker"
+    "pydantic-settings>=2.3.4,<3.0.0",
+    "aiodocker>=0.24.0",
 ]
 
 
 [build-system]
-requires = ["poetry-core>=2.0.0,<3.0.0"]
+requires = ["poetry-core>=2.0.0,<3.0.0","pip"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.group.dev.dependencies]
@@ -27,11 +28,12 @@ ruff = "^0.11.2"
 [dependency-groups]
 dev = [
     "ruff>=0.11.2",
+    "pytest"
 ]
 
 
 [tool.poetry]
 packages = [
-    { include = "elasticsearch-documentation-manager-mcp" },
-    { include = "elasticsearch-documentation-manager-mcp/**/*.py" },
+    { include = "esdocmanagermcp" },
+    { include = "esdocmanagermcp/**/*.py" },
 ]

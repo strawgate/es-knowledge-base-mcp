@@ -1,7 +1,8 @@
 domains
 plans
-references
 .venv
 .vscode/launch.json
 **.DS_Store
 run-mcp.sh
+.pytest_cache
+.ruff_cache
