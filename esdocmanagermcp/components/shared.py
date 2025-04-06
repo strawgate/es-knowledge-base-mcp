@@ -27,7 +27,7 @@ class AppSettings(BaseSettings):
 
     # Crawler Configuration
     crawler_image: str = Field(
-        "docker.elastic.co/integrations/crawler:latest", validation_alias="CRAWLER_IMAGE"
+        "ghcr.io/strawgate/es-crawler:main", validation_alias="CRAWLER_IMAGE"
     )
 
     # MCP Transport Configuration
@@ -160,7 +160,7 @@ def get_crawler_es_settings(settings: AppSettings):
     crawler_es_settings = {
         "host": es_host,  # e.g., https://cluster.aws.elastic.cloud
         "port": es_port,  # e.g., 443
-        "timeout": "600s",
+        "request_timeout": "600s",
         "elasticsearch.bulk_api.max_items": 1000,
         "pipeline": settings.es_pipeline,
     }

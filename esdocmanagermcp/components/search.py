@@ -91,23 +91,32 @@ class Searcher:
         # Basic ELSER query structure
         search_body = {
             "query": {
-                "semantic": {
-                    "field": "body",
-                    "query": query,
+                "bool": {
+                    "should": [
+                        {
+                            "match": {"headings": {"query": query, "boost": 1}},
+                        },
+                        {
+                            "semantic": {
+                                "field": "body",
+                                "query": query,
+                                "boost": 2
+                            }
+                        },
+                    ]
                 }
             },
             "_source": ["title", "url", "crawled_at"],  # Return specific fields
             "size": 10,  # Limit results
             "highlight": {  # Add highlighting on the body field
-                "fields": {"body": {
-                    "order": "score"
-                    }
-                }
+                "fields": {"body": {"order": "score"}}
             },
         }
 
         try:
-            response:ObjectApiResponse[dict] = await self.es_client.search(index=index_name, **search_body)
+            response: ObjectApiResponse[dict] = await self.es_client.search(
+                index=index_name, **search_body
+            )
 
             hits = response.get("hits", {}).get("hits", [])
             results = hits

@@ -20,7 +20,6 @@ from esdocmanagermcp.components.shared import (
 from esdocmanagermcp.components.crawl import Crawler, CrawlerSettings
 from esdocmanagermcp.components.search import Searcher, SearcherSettings
 
-
 # Configure logging
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -175,6 +174,14 @@ mcp = fastmcp.FastMCP(
 logger.info("FastMCP server instance created, running %s.", mcp_transport_setting)
 # endregion Globals
 
+@mcp.prompt()
+async def get_started_with_documentation() -> str:
+    """When using the docs tool, always start by searching for dependencies, finding the web url of the online documentation, and then using the crawl_domain tool to crawl the documentation."""
+    return [
+        "It's always a great idea to have documentation available when starting a new project. You can use the 'crawl_domain' tool to crawl a website and index its documentation into Elasticsearch. This will allow you to search through the documentation using the 'search_documentation' tool."
+        "Just review the major runtime and development dependencies in the project and grab the documentation for those dependencies."
+        "Review the other prompts for more information on how to use the tools."
+    ]
 
 @mcp.prompt()
 async def list_documentation_indices() -> str:
@@ -206,7 +213,7 @@ async def search_documentation(index_name: str, query: str) -> dict:
     Performs a search query against a specified documentation index using ELSER.
 
     Args:
-        index_name: The name of the Elasticsearch index to search.
+        index_name: The names of the Elasticsearch indices to search. Use a wildcard or target as many indices as you want separated by commas.
         query: The search query string.
 
     Returns:
@@ -221,14 +228,14 @@ async def search_documentation(index_name: str, query: str) -> dict:
 
 
 @mcp.prompt(
-    description="Provides guidance on how to use the 'crawl_domain' tool to crawl a website and index its documentation into Elasticsearch."
+    description="Provides guidance on how to use the 'crawl_complex_domain' tool to crawl a website and index its documentation into Elasticsearch."
 )
-async def crawl_website_documentation(
+async def crawl_custom_website_documentation(
     url,
 ) -> str:
-    """Provides guidance on using the 'crawl_domain' tool."""
+    """Provides guidance on using the 'crawl_complex_domain' tool."""
     logger.info(
-        f"Prompt received: Guidance for crawl_domain tool url: {url}."
+        f"Prompt received: Guidance for crawl_complex_domain tool url: {url}."
     )
 
     # Extract domain from the URL, use url_parse to get the netloc, keep the www and scheme but nothing after the tld
@@ -256,15 +263,34 @@ async def crawl_website_documentation(
         f"  - filter_pattern: A URL prefix the crawler should stay within (e.g., '{filter_pattern or '/docs/'}').\n"
         f"  - output_index_suffix: A suffix added to '{searcher.settings.es_index_prefix}-' to create the final index name (e.g., '{recommended_index_suffix or 'my-docs'}' results in '{searcher.settings.es_index_prefix}-{recommended_index_suffix or 'my-docs'}').\n\n"
         "The tool will start the crawl in the background and return a message with the container ID.\n"
-        "Use 'list_crawls', 'get_crawl_status', and 'get_crawl_logs' to monitor progress.\n"
+        "Use 'list_crawls', 'get_crawl_status', and 'get_crawl_logs' to monitor progress. Crawling can take some time so no need to check on status constantly.\n"
         "Based on the url you provided me, you should run:\n"
         f"  crawl_domain(domain='{domain}', seed_url='{seed_url}', filter_pattern='{filter_pattern}', output_index_suffix='{recommended_index_suffix}')\n\n"
     )
     return guidance
 
 
-# endregion Prompts
 
+@mcp.prompt(
+    description="Provides guidance on how to use the 'crawl_complex_domain' tool to crawl a website and index its documentation into Elasticsearch."
+)
+async def crawl_web_documentation(
+    url,
+) -> str:
+    """Provides guidance on using the 'crawl_domains' tool."""
+    logger.info(
+        f"Prompt received: Guidance for crawl_domains tool url: {url}."
+    )
+
+    guidance = (
+        "To crawl many websites and index their documentation, use the 'crawl_domains' tool."
+        "The best way to use this tool is to first review the major runtime and development dependencies in the project and find the documentation for those dependencies. "
+        "Then, pass the URLs, all at once, to the crawl_domains tool. It's better to grab more documentation than you need!\n\n"
+    )
+    return guidance
+
+
+# endregion Prompts
 
 # region Crawler
 @mcp.tool()
@@ -280,11 +306,11 @@ async def pull_crawler_image() -> str:
 
 
 @mcp.tool()
-async def crawl_domain(
+async def crawl_complex_domain(
     domain: str, seed_url: str, filter_pattern: str, output_index_suffix: str
 ) -> str:
     """
-    Starts crawling a website using the configured Elastic crawler Docker image,
+    Starts crawling a website with non-standard filter patterns using the configured Elastic crawler Docker image,
     indexing content into a specified Elasticsearch index suffix. Returns the container ID.
 
     Args:
@@ -308,6 +334,40 @@ async def crawl_domain(
 
 
 @mcp.tool()
+async def crawl_domains(seed_urls: List[str]) -> List[Dict[str, Any]]:
+    """
+    Starts one or many crawl jobs based on a list of seed URLs. Before running, always come up with the full list of
+    documentation sources you need. Confirm the URL of the documentation, and then pass the URLs to the crawl_domains tool.
+    It's better to grab more documentation than you need!
+    """
+    logger.info(f"Tool: Received crawl_domains request for {len(seed_urls)} URLs.")
+    # Ensure crawler component is initialized (via lifespan)
+
+    results = []
+    logger.info(f"Starting crawl_domains processing for {len(seed_urls)} seed URLs.")
+
+    for seed_url in seed_urls:
+        logger.debug(f"Processing seed URL: {seed_url}")
+        # 1. Derive parameters using the method on the crawler component
+        # This method needs to be restored/made public in crawl.py
+        params = await crawler.derive_crawl_params_from_seed(seed_url)
+        logger.debug(f"Derived parameters for {seed_url}: {params}")
+
+        # 2. Start the crawl using crawler.crawl_domain method
+        container_id = await crawler.crawl_domain(
+            domain=params["domain"],
+            seed_url=seed_url, # Pass the original seed_url here
+            filter_pattern=params["filter_pattern"],
+            output_index_suffix=params["output_index_suffix"]
+        )
+        logger.info(f"Successfully initiated crawl for {seed_url}, container ID: {container_id[:12]}")
+        results.append({"seed_url": seed_url, "status": "success", "container_id": container_id})
+
+    logger.info(f"Finished crawl_domains processing. Results count: {len(results)}")
+    return results
+
+
+@mcp.tool()
 async def list_crawls() -> str:
     """
     Lists currently running or recently completed crawl containers managed by this server.
@@ -328,12 +388,13 @@ async def list_crawls() -> str:
         c_domain = container.get("labels", {}).get(crawler.DOMAIN_LABEL, "N/A")
         c_completed = True if c_status.startswith("Exited") else False
         c_errored = True if c_completed and not c_status.startswith("Exited (0)") else False
-        c_succeeded = not c_errored
+        #c_succeeded = not c_errored
         formatted_list.append(
             f"  - Domain: {c_domain}, Done: {c_completed}, Errored: {c_errored}, ID: {c_id}, Name: {c_name}, , State: {c_state}, Status: {c_status}"
         )
 
     return "\n".join(formatted_list)
+
 
 
 @mcp.tool()

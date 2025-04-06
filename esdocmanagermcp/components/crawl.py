@@ -1,5 +1,7 @@
 import logging
 import yaml
+import urllib.parse
+import re
 from typing import List, Dict, Any
 import aiodocker
 from aiodocker.exceptions import DockerError
@@ -10,12 +12,16 @@ from esdocmanagermcp.components.errors import (
     ContainerStartFailedError,
     ConfigGenerationError,
     ContainerNotFoundError,
+    # Add ParameterDerivationError here if defined in errors module, otherwise define below
 )
 
 from esdocmanagermcp.components.helpers import docker_utils
 from esdocmanagermcp.components.helpers.docker_utils import InjectFile
 
-
+# Define custom error for parameter derivation issues
+class ParameterDerivationError(CrawlError):
+    """Error raised when deriving crawl parameters from a seed URL fails."""
+    pass
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
@@ -46,7 +52,7 @@ class Crawler:
     MANAGED_BY_LABEL = "managed-by"
     MANAGED_BY_VALUE = "mcp-crawler"
     DOMAIN_LABEL = "crawl-domain"
-    CONFIG_FILENAME = "crawl.json"
+    CONFIG_FILENAME = "crawl.yml"
     # endregion Constants
 
     # region __init__
@@ -102,7 +108,62 @@ class Crawler:
                 f"Failed to serialize config to JSON: {e}"
             ) from e
 
-    # endregion Private Methods
+    async def derive_crawl_params_from_seed(self, seed_url: str) -> dict:
+        """
+        Derives domain, filter_pattern, and output_index_suffix from a seed URL.
+        Raises ParameterDerivationError for invalid URLs or derivation issues.
+
+        For this seed url https://www.elastic.co/guide/en/elasticsearch/client/ruby-api/current/ruby_client.html
+        returns:
+        {
+            "domain": "https://www.elastic.co",
+            "filter_pattern": "/guide/en/elasticsearch/client/ruby-api/current/",
+            "output_index_suffix": "www_elastic_co_guide_en_elasticsearch_client_ruby_api_current"
+        }
+        """
+
+        if not seed_url:
+            raise ParameterDerivationError("Seed URL cannot be empty.")
+
+        try:
+            parsed = urllib.parse.urlparse(seed_url)
+            # Basic validation: scheme and netloc must exist
+            if not parsed.scheme or not parsed.netloc:
+                raise ValueError("Invalid URL structure (missing scheme or netloc).")
+        except ValueError as e:
+            logger.error(f"Failed to parse seed URL '{seed_url}': {e}")
+            raise ParameterDerivationError(f"Invalid seed URL format: {seed_url}") from e
+
+        domain = f"{parsed.scheme}://{parsed.netloc}"
+        path = parsed.path
+
+        # filter_pattern needs to be the path without the final part (after the last slash excluded)
+
+        filter_pattern = "/"
+        if path:
+            # Find the last slash and slice the path
+            last_slash_index = path.rfind("/")
+            if last_slash_index != -1:
+                filter_pattern = path[:last_slash_index + 1]
+            # if the last char is a slash, let's keep it
+
+        # Sanitize domain and path for index suffix
+        # Sanitization requires lowercase, replace dots with underscores and slashes with dots
+        # remove any hyphens or other special characters
+        destination_index_name = parsed.netloc.lower() + filter_pattern.lower()
+        destination_index_name = destination_index_name.replace('.', '_')
+        destination_index_name = destination_index_name.replace('-', '_')
+        destination_index_name = destination_index_name.replace('//', '/')
+        destination_index_name = destination_index_name.replace('/', '.')
+        # Remove any invalid characters (e.g., leading/trailing underscores)
+        destination_index_name = re.sub(r'[^a-z0-9._]+', '_', destination_index_name)
+        # Remove leading/trailing underscores/dots/hyphens
+        destination_index_name = destination_index_name.strip('_.-')
+
+        logger.debug(f"Derived params for '{seed_url}': domain='{domain}', filter='{filter_pattern}', suffix='{destination_index_name}'")
+        return {"domain": domain, "filter_pattern": filter_pattern, "output_index_suffix": destination_index_name}
+
+        # endregion Private Methods
 
     # region Public Methods
     async def pull_crawler_image(self) -> None:
@@ -305,7 +366,8 @@ class Crawler:
         logger.info(f"Completed removal process. Removed: {removed_count}, Errors: {len(errors)}.")
         return result
 
-    # endregion Public Methods
+
+# endregion Public Methods
 
 
 # endregion Class Definition
