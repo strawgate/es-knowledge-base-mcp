@@ -18,9 +18,8 @@ class LoggingSettings(BaseSettings):
     log_level: str = Field("INFO", validation_alias="LOG_LEVEL")
 
     # include the PID in the log format
-    pid = os.getpid()
     log_format: str = Field(
-        f"%(asctime)s : {pid} - %(name)s - %(levelname)s - %(message)s",
+        f"%(asctime)s : {os.getpid()} - %(name)s - %(levelname)s - %(message)s",
         validation_alias="LOG_FORMAT",
     )
     log_file: Optional[str] = Field(None, validation_alias="LOG_FILE")
