@@ -7,6 +7,18 @@ This MCP server provides tools to your AI Assitant allowing it to crawl and sear
 1.  A Docker container running the `ghcr.io/strawgate/es-crawler:main` image (or as configured via `CRAWLER_IMAGE` env var) to perform the actual web crawling.
 2.  An Elasticsearch cluster for index listing and ELSER-powered searching. Indices created will use the prefix `docsmcp-` by default (configurable via `ES_INDEX_PREFIX` env var). Using an [Elasticsearch Serverless Search project](https://www.elastic.co/guide/en/serverless/current/what-is-elasticsearch-serverless.html) is a lightning fast way to get started.
 
+## Demo
+
+### Searching Documentation
+
+https://github.com/user-attachments/assets/2aa7155a-5d54-4ffe-aa4a-4bb0914c6297
+
+### Crawling Documentation
+
+https://github.com/user-attachments/assets/c7226aa9-9b40-45fb-877b-8721550e0576
+
+
+
 ## Configuration
 
 This server requires connection details for your Elasticsearch cluster and is configured directly within your MCP host's settings file (e.g., `mcp_settings.json` for the Roo VS Code extension).
