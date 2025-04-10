@@ -1,6 +1,7 @@
 import logging
+import inspect
 
-from typing import Any, Optional, Dict
+from typing import Any, List, Optional, Dict
 from urllib.parse import urlparse
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field, SecretStr, model_validator
@@ -17,7 +18,6 @@ class AppSettings(BaseSettings):
         env_file=".env", env_file_encoding="utf-8", extra="ignore"
     )
 
-    # Elasticsearch Configuration
     es_host: str = Field(..., validation_alias="ES_HOST")
     es_pipeline: str = Field(..., validation_alias="ES_PIPELINE")
     es_api_key: Optional[SecretStr] = Field(None, validation_alias="ES_API_KEY")
@@ -25,12 +25,10 @@ class AppSettings(BaseSettings):
     es_password: Optional[SecretStr] = Field(None, validation_alias="ES_PASSWORD")
     es_index_prefix: str = Field("docsmcp", serialization_alias="ES_INDEX_PREFIX")
 
-    # Crawler Configuration
     crawler_image: str = Field(
-        "ghcr.io/strawgate/es-crawler:main", validation_alias="CRAWLER_IMAGE"
+        "localcrawler:latest", validation_alias="CRAWLER_IMAGE"
     )
 
-    # MCP Transport Configuration
     mcp_transport: str = Field(
         "sse", validation_alias="MCP_TRANSPORT"
     )  # Default to sse
@@ -60,8 +58,14 @@ def generate_index_template(
     index_pattern: list[str], pipeline_name: str
 ) -> Dict[str, Any]:
     """
-    Generates the index template dynamically based on the provided index pattern and pipeline name.
-    This function is used to create the index template for Elasticsearch.
+    Generates the dictionary structure for an Elasticsearch index template.
+
+    Args:
+        index_pattern: List of patterns the template should apply to.
+        pipeline_name: The default ingest pipeline to set for matching indices.
+
+    Returns:
+        A dictionary representing the Elasticsearch index template definition.
     """
     return {
         "index_patterns": index_pattern,
@@ -144,7 +148,7 @@ def generate_index_template(
 
 
 def get_crawler_es_settings(settings: AppSettings):
-    """Generate an output block for the crawler"""
+    """Generates the Elasticsearch connection settings dictionary required by the crawler."""
     # for some reason the crawler takes ES settings in a weird format
     parsed_url = urlparse(settings.es_host)
     
@@ -160,8 +164,9 @@ def get_crawler_es_settings(settings: AppSettings):
     crawler_es_settings = {
         "host": es_host,  # e.g., https://cluster.aws.elastic.cloud
         "port": es_port,  # e.g., 443
-        "request_timeout": "600s",
+        "request_timeout": 600,
         "elasticsearch.bulk_api.max_items": 1000,
+        "elasticsearch.bulk_api.max_size_bytes": 10485760,
         "pipeline": settings.es_pipeline,
     }
     if settings.es_api_key:
@@ -185,6 +190,9 @@ def create_es_client(settings: AppSettings):
         "hosts": [settings.es_host],
         "request_timeout": 180,
         "http_compress": True,
+        "retry_on_status": (408, 429, 502, 503, 504),
+        "retry_on_timeout":True,
+        "max_retries": 5
     }
 
     if settings.es_api_key:
@@ -198,5 +206,52 @@ def create_es_client(settings: AppSettings):
     client = AsyncElasticsearch(**es_client_args)
     return client
 
+def format_search_results_plain_text(search_results: List[Dict[str, Any]]) -> str:
+    """Formats a list of search result dictionaries into a plain text string."""
+    if not search_results:
+        return "No search results found."
+
+    for i, result in enumerate(search_results):
+        title = result.get("title", "No title found")
+        url = result.get("url", "No URL found")
+
+        if matches := result.get("match"):
+            matches_str = "\n".join([f"- {match.strip()}" for match in matches])
+            formatted_string = inspect.cleandoc("""
+                Title: {title}
+                URL: {url}
+                Relevant Snippets:
+                {matches}
+                ---
+            """).format(
+                title=title,
+                url=url,
+                matches=matches_str,
+            )
+            return formatted_string
+        
+        if content := result.get("content"):
+            formatted_string = inspect.cleandoc("""
+                Title: {title}
+                URL: {url}
+                Content:
+                - {content}
+                ---
+            """).format(
+                title=title,
+                url=url,
+                content=content.strip(),
+            )
+            return formatted_string
+        
+        formatted_string = inspect.cleandoc("""
+            Title: {title}
+            URL: {url}
+            ---
+        """).format(
+            title=title,
+            url=url,
+        )
+        return formatted_string
 
 # endregion Utility Functions

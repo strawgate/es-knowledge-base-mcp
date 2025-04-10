@@ -2,7 +2,6 @@ import logging
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Optional, AsyncIterator, Dict, Any, List
-from urllib.parse import urlparse
 import aiodocker
 from elasticsearch import (
     AsyncElasticsearch,
@@ -15,21 +14,21 @@ from esdocmanagermcp.components.shared import (
     AppSettings,
     create_es_client,
     generate_index_template,
+    format_search_results_plain_text,
     get_crawler_es_settings,
 )
 from esdocmanagermcp.components.crawl import Crawler, CrawlerSettings
 from esdocmanagermcp.components.search import Searcher, SearcherSettings
+from esdocmanagermcp.components.indices import IndicesManager
 
-# Configure logging
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
-# region Globals
-# --- Component Instances (initialized in lifespan) ---
 crawler: Optional[Crawler] = None
 searcher: Optional[Searcher] = None
+indices_manager: Optional[IndicesManager] = None
 
 # --- Load Minimal Settings for MCP Initialization ---
 try:
@@ -53,6 +52,7 @@ class AppContext:
     searcher: Searcher
     es_client: AsyncElasticsearch
     docker_client: aiodocker.Docker
+    indices_manager: IndicesManager
 
 
 @asynccontextmanager
@@ -66,7 +66,7 @@ async def app_lifespan(server: fastmcp.FastMCP) -> AsyncIterator[AppContext]:
     - Yields context with initialized components.
     - Cleans up resources on shutdown.
     """
-    global crawler, searcher, docker_client
+    global crawler, searcher, docker_client, indices_manager
 
     logger.info("Executing application startup sequence...")
 
@@ -98,6 +98,7 @@ async def app_lifespan(server: fastmcp.FastMCP) -> AsyncIterator[AppContext]:
             es_client=es_client_instance,
             settings=searcher_settings,
         )
+        indices_manager_instance = IndicesManager(es_client=es_client_instance)
 
         # 5. Create AppContext
         context = AppContext(
@@ -105,6 +106,7 @@ async def app_lifespan(server: fastmcp.FastMCP) -> AsyncIterator[AppContext]:
             searcher=searcher_instance,
             es_client=es_client_instance,
             docker_client=docker_client_instance,
+            indices_manager=indices_manager_instance,
         )
 
         if not await es_client_instance.ping():
@@ -123,8 +125,9 @@ async def app_lifespan(server: fastmcp.FastMCP) -> AsyncIterator[AppContext]:
         crawler = context.crawler
         searcher = context.searcher
         docker_client = context.docker_client
+        indices_manager = context.indices_manager
 
-        await update_dynamic_resources()
+        #await update_dynamic_resources()
 
         logger.info("yielding to mcp server")
 
@@ -170,127 +173,69 @@ mcp = fastmcp.FastMCP(
     "esdocmanagermcp",
     transport=mcp_transport_setting,
     lifespan=app_lifespan,
+    log_level="ERROR"
 )
 logger.info("FastMCP server instance created, running %s.", mcp_transport_setting)
 # endregion Globals
 
-@mcp.prompt()
-async def get_started_with_documentation() -> str:
-    """When using the docs tool, always start by searching for dependencies, finding the web url of the online documentation, and then using the crawl_domain tool to crawl the documentation."""
-    return [
-        "It's always a great idea to have documentation available when starting a new project. You can use the 'crawl_domain' tool to crawl a website and index its documentation into Elasticsearch. This will allow you to search through the documentation using the 'search_documentation' tool."
-        "Just review the major runtime and development dependencies in the project and grab the documentation for those dependencies."
-        "Review the other prompts for more information on how to use the tools."
-    ]
 
-@mcp.prompt()
-async def list_documentation_indices() -> str:
-    """Provides guidance on how to use the 'list_doc_indices' tool to see available documentation indices (which correspond to searchable resources)."""
-    return "To see which documentation sets have been crawled and are available for searching, use the 'list_doc_indices' tool."
-
-
-@mcp.prompt()
-async def search_documentation_prompt(query: str) -> str:
-    """Provides guidance on how to search crawled documentation using the available dynamic resources (e.g., 'Search: elastic-docs')."""
-    logger.info(
-        f"Prompt received: Guidance for searching documentation (example query: '{query}')."
-    )
-    indices = await searcher.list_doc_indices()
-
-    guidance = (
-        "To search crawled documentation, use the dynamic resources provided by the server. "
-        "Searching simply entails entering in plain text what you're looking for. "
-        "These resources typically look like 'search_<documentation_suffix>'.\n\n"
-        "You can see the available documentation sets by using the 'list_doc_indices' tool.\n"
-        f"{', '.join(indices)}"
-    )
-    return guidance
-
-
+# region Indices Tools
 @mcp.tool()
-async def search_documentation(index_name: str, query: str) -> dict:
+async def get_documentation_types(include_doc_count: bool = False) -> List[Dict[str, Any]]:
     """
-    Performs a search query against a specified documentation index using ELSER.
+    Retrieve the list of documentation available from the MCP Server. Only needed if searching via search_all_documentation does not
+    provide the desired results. Check this list to see what specific indices are available.
 
     Args:
-        index_name: The names of the Elasticsearch indices to search. Use a wildcard or target as many indices as you want separated by commas.
-        query: The search query string.
-
-    Returns:
-        A dictionary containing search results.
+        include_doc_count: Whether to include the document count in the response.
+        include_creation_date: Whether to include the creation date in the response.
     """
-    logger.info(
-        f"Tool Shim: Received search request for index '{index_name}' with query '{query}'."
-    )
 
-    search_results = await searcher.search_docs(index_name=index_name, query=query)
-    return {"search_results": search_results}
+    results = await indices_manager.list_elasticsearch_indices()
 
+    # Sort alphabetically
+    results.sort(key=lambda x: x["index"])
 
-@mcp.prompt(
-    description="Provides guidance on how to use the 'crawl_complex_domain' tool to crawl a website and index its documentation into Elasticsearch."
-)
-async def crawl_custom_website_documentation(
-    url,
-) -> str:
-    """Provides guidance on using the 'crawl_complex_domain' tool."""
-    logger.info(
-        f"Prompt received: Guidance for crawl_complex_domain tool url: {url}."
-    )
+    if not include_doc_count:
+        return "\n".join(
+            [
+                result["index"].split(searcher.settings.es_index_prefix + "-")[1]
+                for result in results
+            ]
+        )
 
-    # Extract domain from the URL, use url_parse to get the netloc, keep the www and scheme but nothing after the tld
-    parsed_url = urlparse(url)
-    domain = parsed_url.netloc
-    scheme = parsed_url.scheme + "://"
-    seed_url = url
-    # the filter pattern is normally the second last part of the path
-    # e.g., https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html -> https://www.elastic.co/guide/en/elasticsearch/reference/current/
-    path_components = parsed_url.path.split("/")
-    filter_pattern = "/".join(
-        path_components[: len(path_components) - 1]
-    ) if len(path_components) >= 2 else parsed_url.path
+    return [
+        {
+            "type": result["index"].split(searcher.settings.es_index_prefix + "-")[1],
+            #"creation_date": result["creation.date.string"] if include_creation_date else None,
+            "documents": result["docs.count"] if include_doc_count else None,
+        }
+        for result in results
+    ]
+
+@mcp.tool()
+async def delete_documentation(type: str) -> str:
+    """
+    Deletes specific documentation from Elasticsearch.
+
+    Args:
+        type: The type name of the documentation index to delete (e.g., 'elastic_co.guide_en_index'). Wildcards are not allows.
+    """
+    full_index_name = f"{searcher.settings.es_index_prefix}-{type}"
+
+    if "*" in type:
+        raise ValueError("Wildcard '*' is not allowed in the type name.")
     
-    # take the domain and filtered_path, and convert 
-    #www_elastic_co.guide_en_elasticsearch_reference_current
-    recommended_index_suffix = f"{domain.replace('.', '_')}.{'_'.join(path_components[1:-1])}"
+    logger.info(f"Tool: Received request to delete documentation index type '{type}' (full name: '{full_index_name}')")
 
-    guidance = (
-        "To crawl a website and index its documentation, use the 'crawl_domain' tool. "
-        "This tool runs the Elastic web crawler in a Docker container.\n\n"
-        "Required parameters:\n"
-        f"  - domain: The primary domain name (e.g., '{scheme + "://" + domain or 'https://www.example.com'}'). Must include scheme. Cannot include a path\n"
-        f"  - seed_url: The starting URL for the crawl (e.g., '{seed_url or 'https://www.example.com/docs/index.html'}').\n"
-        f"  - filter_pattern: A URL prefix the crawler should stay within (e.g., '{filter_pattern or '/docs/'}').\n"
-        f"  - output_index_suffix: A suffix added to '{searcher.settings.es_index_prefix}-' to create the final index name (e.g., '{recommended_index_suffix or 'my-docs'}' results in '{searcher.settings.es_index_prefix}-{recommended_index_suffix or 'my-docs'}').\n\n"
-        "The tool will start the crawl in the background and return a message with the container ID.\n"
-        "Use 'list_crawls', 'get_crawl_status', and 'get_crawl_logs' to monitor progress. Crawling can take some time so no need to check on status constantly.\n"
-        "Based on the url you provided me, you should run:\n"
-        f"  crawl_domain(domain='{domain}', seed_url='{seed_url}', filter_pattern='{filter_pattern}', output_index_suffix='{recommended_index_suffix}')\n\n"
-    )
-    return guidance
+    success = await indices_manager.delete_elasticsearch_index(full_index_name)
 
-
-
-@mcp.prompt(
-    description="Provides guidance on how to use the 'crawl_complex_domain' tool to crawl a website and index its documentation into Elasticsearch."
-)
-async def crawl_web_documentation(
-    url,
-) -> str:
-    """Provides guidance on using the 'crawl_domains' tool."""
-    logger.info(
-        f"Prompt received: Guidance for crawl_domains tool url: {url}."
-    )
-
-    guidance = (
-        "To crawl many websites and index their documentation, use the 'crawl_domains' tool."
-        "The best way to use this tool is to first review the major runtime and development dependencies in the project and find the documentation for those dependencies. "
-        "Then, pass the URLs, all at once, to the crawl_domains tool. It's better to grab more documentation than you need!\n\n"
-    )
-    return guidance
-
-
-# endregion Prompts
+    if success:
+        return f"Documentation index type '{type}' (index: {full_index_name}) was deleted or did not exist."
+    else:
+        return f"Error deleting documentation index type '{type}'. Check server logs for details."
+    
+# endregion Indices
 
 # region Crawler
 @mcp.tool()
@@ -306,62 +251,82 @@ async def pull_crawler_image() -> str:
 
 
 @mcp.tool()
-async def crawl_complex_domain(
-    domain: str, seed_url: str, filter_pattern: str, output_index_suffix: str
-) -> str:
+async def crawl_domains(
+    seed_pages: str | List[str] | None = None, seed_dirs: str | List[str] | None = None
+) -> List[Dict[str, Any]]:
     """
-    Starts crawling a website with non-standard filter patterns using the configured Elastic crawler Docker image,
-    indexing content into a specified Elasticsearch index suffix. Returns the container ID.
+    Starts one or many crawl jobs based on lists of seed pages and/or directories.
 
     Args:
-        domain: The primary domain name (e.g., https://www.elastic.co). Used for config generation.
-        seed_url: The starting URL for the crawl. https://www.elastic.co/guide/en/index.html
-        filter_pattern: URL prefix pattern to restrict the crawl (e.g., /guide/en/).
-        output_index_suffix: Suffix to append to the default prefix (e.g., 'elastic_co.guide_en_index').
+    - `seed_pages`: Each URL in this list will be checked for content. When crawling, we'll follow links which match everything
+      after the last `/` of the seed_page provided. Useful when your seed_url is a markdown, html or other file and you want sibling pages 
+      to be included. For example if https://github.com/microsoft/vscode/blob/main/README.md is provided, all pages starting with 
+      `https://github.com/microsoft/vscode/blob/main/` will be crawled.
+    - `seed_dirs`: Each URL in this list will be checked for content. When crawling, we'll only follow links to child pages of the seed_dir
+      provided. That is, we'll only follow links which start with the seed_dir url provided. For example if `https://github.com/microsoft/vscode` is provided, only pages
+      starting with `https://github.com/microsoft/vscode` will be crawled. Useful when removing everything after the 
+      last `/` would result in scraping hundreds of thousands of pages, i.e. `https://github.com/microsoft` would scrape all of github.
+
+    Returns:
+        A list of dictionaries, each containing the result for a processed seed URL,
+        including 'seed_url', 'scope_type', 'start_status' ('success' or 'error'),
+        'container_id' (on success), or 'message' (on error).
     """
-    logger.info(
-        f"Tool Shim: Received crawl request for domain '{domain}', suffix '{output_index_suffix}'"
-    )
-
-    container_id = await crawler.crawl_domain(
-        domain=domain,
-        seed_url=seed_url,
-        filter_pattern=filter_pattern,
-        output_index_suffix=output_index_suffix,
-    )
-
-    return f"Crawl started for domain '{domain}'. Container ID: {container_id}"
-
-
-@mcp.tool()
-async def crawl_domains(seed_urls: List[str]) -> List[Dict[str, Any]]:
-    """
-    Starts one or many crawl jobs based on a list of seed URLs. Before running, always come up with the full list of
-    documentation sources you need. Confirm the URL of the documentation, and then pass the URLs to the crawl_domains tool.
-    It's better to grab more documentation than you need!
-    """
-    logger.info(f"Tool: Received crawl_domains request for {len(seed_urls)} URLs.")
-    # Ensure crawler component is initialized (via lifespan)
+    
+    # Ensure seed_pages and seed_dirs are lists
+    seed_pages = [seed_pages] if isinstance(seed_pages, str) else seed_pages or []
+    seed_dirs = [seed_dirs] if isinstance(seed_dirs, str) else seed_dirs or []
+    
+    logger.info(f"Tool: Received crawl_domains request. Pages: {len(seed_pages)}, Dirs: {len(seed_dirs)}.")
+    
+    crawler_jobs_to_start = []
 
     results = []
-    logger.info(f"Starting crawl_domains processing for {len(seed_urls)} seed URLs.")
 
-    for seed_url in seed_urls:
-        logger.debug(f"Processing seed URL: {seed_url}")
-        # 1. Derive parameters using the method on the crawler component
-        # This method needs to be restored/made public in crawl.py
-        params = await crawler.derive_crawl_params_from_seed(seed_url)
-        logger.debug(f"Derived parameters for {seed_url}: {params}")
+    for page_url in seed_pages:
+        if page_url == '':
+            continue
+        logger.debug(f"Processing seed page: {page_url}")
 
-        # 2. Start the crawl using crawler.crawl_domain method
+        try:
+            crawl_params = crawler.derive_crawl_params_from_url(page_url)
+            crawler_jobs_to_start.append(crawl_params)
+        except Exception as e: # Blanket exception for now, we can be more specific later
+            logger.error(f"Error processing seed page {page_url}: {e}", exc_info=True)
+            results.append({"seed_url": page_url, "success": False, "message": str(e)})
+
+    
+    for dir_url in seed_dirs:
+        if dir_url == '':
+            continue
+        logger.debug(f"Processing seed directory: {dir_url}")
+
+        try:
+            crawl_params = crawler.derive_crawl_params_from_dir(dir_url)
+            crawler_jobs_to_start.append(crawl_params)
+        except Exception as e: # Blanket exception for now, we can be more specific later
+            logger.error(f"Error processing seed directory {dir_url}: {e}", exc_info=True)
+            results.append({"seed_url": dir_url, "success": False, "message": str(e)})
+
+
+    for params in crawler_jobs_to_start:
+        domain = params["domain"]
+        page_url = params["page_url"]
+        filter_pattern = params["filter_pattern"]
+        output_index_suffix = params["output_index_suffix"]
+
+        logger.debug(f"Derived parameters for {page_url}: {params}")
+
         container_id = await crawler.crawl_domain(
-            domain=params["domain"],
-            seed_url=seed_url, # Pass the original seed_url here
-            filter_pattern=params["filter_pattern"],
-            output_index_suffix=params["output_index_suffix"]
-        )
-        logger.info(f"Successfully initiated crawl for {seed_url}, container ID: {container_id[:12]}")
-        results.append({"seed_url": seed_url, "status": "success", "container_id": container_id})
+            domain=domain,
+            seed_url=page_url,
+            filter_pattern=filter_pattern,
+            output_index_suffix=output_index_suffix
+        ) 
+
+        logger.info(f"Successfully initiated crawl for page {page_url}, container ID: {container_id[:12]}")
+
+        results.append({"seed_url": page_url, "success": True, "container_id": container_id})
 
     logger.info(f"Finished crawl_domains processing. Results count: {len(results)}")
     return results
@@ -471,84 +436,102 @@ async def remove_completed_crawls() -> Dict[str, Any]:
 
 # region Searcher
 @mcp.tool()
-async def list_doc_indices() -> list[str]:
+async def search_specific_documentation(types: str, query: str) -> dict:
     """
-    Lists available Elasticsearch documentation indices managed by this server
-    (matching the configured prefix).
+    Performs a search query against a specified documentation index. We use vector search and scoring
+    to return the most useful hits so make sure your query describes what you're looking for!
+
+    Args:
+        type: The documentation types to query, can be comma separated and include trailing or leading wildcards.
+        question: What are you searching for or what problem are you trying to solve in plain english?
+
+    Returns:
+        A dictionary containing search results.
     """
-    logger.info("Tool Shim: Received request to list documentation indices.")
+    logger.info(
+        f"Tool: Received search request for types '{types}' with query '{query}'."
+    )
 
-    indices: List[str] = await searcher.list_doc_indices()
-    return indices
+    search_results = await searcher.documentation_search(type=types, query=query)
+    return {"search_results": search_results}
 
 
-async def update_dynamic_resources():
+@mcp.tool()
+async def search_all_documentation(question: str, results: int = 5) -> dict:
     """
-    Updates MCP dynamic resources based on available documentation indices.
-    Creates a resource for each index, allowing users to search within it.
+    Performs a vector search query against all documentation indices. Gather the list of types from the get_documentation_types tool
+    and use wildcards like `*python*` or `*pytest*,*python*`. Target as many types as will be useful. We use vector search and scoring
+    to return the most useful hits so make sure your query describes what you're looking for! Access to documentation significantly
+    improves your responses by making detailed documentation available that is relevant to what you're working on. 
+
+    Args:
+        type: The documentation types to query, can be comma separated and include trailing or leading wildcards.
+        question: What are you searching for or what problem are you trying to solve in plain english?
+        results: How many answers to request (defaults to 5). Do not provide unless your initial query does not answer your question.
+
+    Returns:
+        A dictionary containing search results.
+
     """
-    logger.info("Updating dynamic search resources...")
+    logger.info(
+        f"Tool: Received search request for all docs with query '{question}'."
+    )
 
-    index_names: list[str] = await list_doc_indices()  # Wrapped call
+    search_results = await searcher.documentation_search(type="*", query=question, results=results)
 
-    if not index_names:
-        logger.info("No documentation indices found, no resources to update.")
-        # Consider removing existing resources if desired? For now, just don't add.
-        return
+    return format_search_results_plain_text(search_results)
 
-    for index_name in index_names:
-        # Define the actual handler function for this specific index
-        # This closure captures the current index_name
 
-        # remove the index prefix from the index_name for the uri
-        # This allows for a cleaner URI
-        prefix = searcher.settings.es_index_prefix
-        name_without_prefix = (
-            index_name.split(prefix + "-")[1]
-            if index_name.startswith(prefix + "-")
-            else index_name
-        )
+@mcp.tool()
+async def get_document_by_url(doc_url: str) -> Optional[Dict[str, Any]]:
+    """
+    Retrieves the full content of a specific document identified by its URL. Useful when you find a fragment via search
+    that's useful but you want to see the whole document.
 
-        async def dynamic_search_wrapper(
-            query: str, _index=index_name
-        ) -> Dict[str, Any]:  # Changed signature
-            search_results = await search_documentation(index_name=_index, query=query)
+    Args:
+        doc_url: The exact URL of the document to retrieve from the documentation store
+    """
+    logger.info(f"Tool: Received get_document_by_url request for URL '{doc_url}''.")
 
-            return {"search_results": search_results}
+    query_part = {
+        "term": {
+            "url.keyword": doc_url
+        }
+    }
 
-        uri = f"docs://{name_without_prefix}/{{query}}"
-        name = f"docs_{name_without_prefix}"
-        description = "Search {name_without_prefix} for documentation."
-        mime_type = "application/json"
+    search_result = await searcher.get_document_by_query(query_body=query_part, types="*")
 
-        logger.info(
-            "Registering dynamic documentation resource template for index: %s with URI: %s",
-            index_name,
-            uri,
-        )
+    return format_search_results_plain_text(search_results=search_result)
 
-        @mcp.resource(
-            uri=uri,
-            name=name,  # Unique name for each index to avoid conflicts
-            description=description,
-            mime_type=mime_type,  # Ensure consistent MIME type for all dynamic resources
-        )
-        async def docs_resource(query: str):
-            """
-            Wrapper function to call the dynamic resource handler.
-            This allows the MCP to route requests to the appropriate handler.
-            """
-            # Call the handler function with the index name and query
-            return await dynamic_search_wrapper(_index=index_name, query=query)
 
-    logger.info("Finished updating dynamic search resources.")
+@mcp.tool()
+async def get_document_by_title(doc_title: str) -> Optional[Dict[str, Any]]:
+    """
+    Retrieves the full content of a document identified by its title. Useful when you find a fragment via search
+    that's useful but you want to see the whole document.
 
+    Args:
+        doc_title: The title of the document to retrieve.
+    """
+    logger.info(f"Tool: Received get_document_by_title request for title '{doc_title}'.")
+
+    query_part = {
+        "match": {
+            "title": doc_title
+        }
+    }
+
+    search_result = await searcher.get_document_by_query(query_body=query_part, types="*")
+
+    return format_search_results_plain_text(search_results=search_result)
 
 # endregion Searcher
 
 # region Main Execution
+
 if __name__ == "__main__":
     logger.info("Starting MCP server...")
-    mcp.run(transport=mcp_transport_setting)
+    mcp.run(mcp_transport_setting)#"sse")
     logger.info("MCP server stopped.")
+
 # endregion Main Execution

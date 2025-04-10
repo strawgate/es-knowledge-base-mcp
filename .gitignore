@@ -6,3 +6,5 @@ plans
 run-mcp.sh
 .pytest_cache
 .ruff_cache
+__pycache__
+references

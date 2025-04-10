@@ -53,3 +53,8 @@ class SearchExecutionError(SearchError):
     """Error during the execution of an Elasticsearch search query."""
 
     pass
+
+class UnknownSearchError(SearchError):
+    """An unknown error occurred during the search operation."""
+
+    pass
