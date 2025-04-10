@@ -35,10 +35,10 @@ try:
     logger.info(f"Using MCP transport: {mcp_transport_setting}")
 except ValidationError as e:
     logger.error(f"Initial configuration error loading MCP transport: {e}")
-    raise RuntimeError("Failed to load initial MCP transport configuration.") from e
+    raise RuntimeError(f"Failed to load initial MCP transport configuration: {e}") from e
 except Exception as e:
     logger.error(f"Unexpected error loading initial MCP transport configuration: {e}")
-    raise RuntimeError("Unexpected error during initial configuration loading.") from e
+    raise RuntimeError(f"Unexpected error during initial configuration loading: {e}") from e
 
 
 # region Lifespan

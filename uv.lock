@@ -164,15 +164,15 @@ dependencies = [
     { name = "anyio" },
     { name = "elasticsearch" },
     { name = "fastmcp" },
+    { name = "pydantic" },
     { name = "pydantic-settings" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
     { name = "pyyaml" },
 ]
 
-[package.dev-dependencies]
+[package.optional-dependencies]
 dev = [
     { name = "pytest" },
+    { name = "pytest-asyncio" },
     { name = "ruff" },
 ]
 
@@ -183,17 +183,14 @@ requires-dist = [
     { name = "anyio", specifier = ">=4.9.0,<5.0.0" },
     { name = "elasticsearch", specifier = ">=8.17.2,<9.0.0" },
     { name = "fastmcp", specifier = ">=0.4.1" },
+    { name = "pydantic", specifier = ">=2.0.0,<3.0.0" },
     { name = "pydantic-settings", specifier = ">=2.3.4,<3.0.0" },
-    { name = "pytest", specifier = ">=8.3.5,<9.0.0" },
-    { name = "pytest-asyncio", specifier = ">=0.26.0,<0.27.0" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3.5,<9.0.0" },
+    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.26.0,<0.27.0" },
     { name = "pyyaml", specifier = ">=6.0.2,<7.0.0" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.11.2" },
 ]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "pytest" },
-    { name = "ruff", specifier = ">=0.11.2" },
-]
+provides-extras = ["dev"]
 
 [[package]]
 name = "fastmcp"
