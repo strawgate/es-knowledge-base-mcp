@@ -10,6 +10,11 @@ from elasticsearch import AsyncElasticsearch
 logger = logging.getLogger(__name__)
 
 
+class TransportSettings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+
+    mcp_transport: str = Field("stdio", validation_alias="MCP_TRANSPORT")
+
 # region Settings
 class AppSettings(BaseSettings):
     """Manages application configuration using environment variables."""
@@ -25,7 +30,6 @@ class AppSettings(BaseSettings):
 
     crawler_image: str = Field("ghcr.io/strawgate/es-crawler:main", validation_alias="CRAWLER_IMAGE")
 
-    mcp_transport: str = Field("stdio", validation_alias="MCP_TRANSPORT")
 
     @model_validator(mode="after")
     def check_auth_logic(self) -> "AppSettings":

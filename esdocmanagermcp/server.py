@@ -12,6 +12,7 @@ import mcp.server.fastmcp as fastmcp
 
 from esdocmanagermcp.components.shared import (
     AppSettings,
+    TransportSettings,
     create_es_client,
     generate_index_template,
     format_search_results_plain_text,
@@ -33,7 +34,7 @@ indices_manager: Optional[IndicesManager] = None
 
 # --- Load Minimal Settings for MCP Initialization ---
 try:
-    bootstrap_settings = AppSettings()
+    bootstrap_settings = TransportSettings()
     mcp_transport_setting = bootstrap_settings.mcp_transport
     logger.info(f"Using MCP transport: {mcp_transport_setting}")
 except ValidationError as e:
