@@ -14,24 +14,18 @@ logger = logging.getLogger(__name__)
 class AppSettings(BaseSettings):
     """Manages application configuration using environment variables."""
 
-    model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", extra="ignore"
-    )
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     es_host: str = Field(..., validation_alias="ES_HOST")
-    es_pipeline: str = Field(..., validation_alias="ES_PIPELINE")
+    es_pipeline: str = Field("search-default-ingestion", validation_alias="ES_PIPELINE")
     es_api_key: Optional[SecretStr] = Field(None, validation_alias="ES_API_KEY")
     es_username: Optional[str] = Field(None, validation_alias="ES_USERNAME")
     es_password: Optional[SecretStr] = Field(None, validation_alias="ES_PASSWORD")
     es_index_prefix: str = Field("docsmcp", serialization_alias="ES_INDEX_PREFIX")
 
-    crawler_image: str = Field(
-        "localcrawler:latest", validation_alias="CRAWLER_IMAGE"
-    )
+    crawler_image: str = Field("ghcr.io/strawgate/es-crawler:main", validation_alias="CRAWLER_IMAGE")
 
-    mcp_transport: str = Field(
-        "sse", validation_alias="MCP_TRANSPORT"
-    )  # Default to sse
+    mcp_transport: str = Field("stdio", validation_alias="MCP_TRANSPORT")
 
     @model_validator(mode="after")
     def check_auth_logic(self) -> "AppSettings":
@@ -54,9 +48,7 @@ class AppSettings(BaseSettings):
 
 
 # region Utility Functions
-def generate_index_template(
-    index_pattern: list[str], pipeline_name: str
-) -> Dict[str, Any]:
+def generate_index_template(index_pattern: list[str], pipeline_name: str) -> Dict[str, Any]:
     """
     Generates the dictionary structure for an Elasticsearch index template.
 
@@ -151,9 +143,9 @@ def get_crawler_es_settings(settings: AppSettings):
     """Generates the Elasticsearch connection settings dictionary required by the crawler."""
     # for some reason the crawler takes ES settings in a weird format
     parsed_url = urlparse(settings.es_host)
-    
+
     es_port = parsed_url.port
-    
+
     if es_port is None:
         # Default to 443 for HTTPS
         es_port = 443 if parsed_url.scheme == "https" else 80
@@ -191,8 +183,8 @@ def create_es_client(settings: AppSettings):
         "request_timeout": 180,
         "http_compress": True,
         "retry_on_status": (408, 429, 502, 503, 504),
-        "retry_on_timeout":True,
-        "max_retries": 5
+        "retry_on_timeout": True,
+        "max_retries": 5,
     }
 
     if settings.es_api_key:
@@ -205,6 +197,7 @@ def create_es_client(settings: AppSettings):
 
     client = AsyncElasticsearch(**es_client_args)
     return client
+
 
 def format_search_results_plain_text(search_results: List[Dict[str, Any]]) -> str:
     """Formats a list of search result dictionaries into a plain text string."""
@@ -229,7 +222,7 @@ def format_search_results_plain_text(search_results: List[Dict[str, Any]]) -> st
                 matches=matches_str,
             )
             return formatted_string
-        
+
         if content := result.get("content"):
             formatted_string = inspect.cleandoc("""
                 Title: {title}
@@ -243,7 +236,7 @@ def format_search_results_plain_text(search_results: List[Dict[str, Any]]) -> st
                 content=content.strip(),
             )
             return formatted_string
-        
+
         formatted_string = inspect.cleandoc("""
             Title: {title}
             URL: {url}
@@ -253,5 +246,6 @@ def format_search_results_plain_text(search_results: List[Dict[str, Any]]) -> st
             url=url,
         )
         return formatted_string
+
 
 # endregion Utility Functions

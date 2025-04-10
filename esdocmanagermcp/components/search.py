@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 import logging
 
-from typing import List, Dict, Any, Optional 
+from typing import List, Dict, Any, Optional
 
 from elastic_transport import ObjectApiResponse
 from pydantic import BaseModel
@@ -19,10 +19,12 @@ from esdocmanagermcp.components.errors import (
 # region Settings
 logger = logging.getLogger(__name__)
 
+
 class SearcherSettings(BaseModel):
     """Settings specific to the Searcher component."""
 
     es_index_prefix: str
+
 
 # endregion Settings
 
@@ -78,9 +80,7 @@ class Searcher:
             },
             "_source": ["title", "url"],
             "size": results,
-            "highlight": {
-                "fields": {"body": {}}
-            },
+            "highlight": {"fields": {"body": {}}},
         }
 
         async with self.error_wrapper("searching", f"index '{target_indices}'"):

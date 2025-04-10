@@ -1,9 +1,10 @@
-import pytest
 import inspect
 from esdocmanagermcp.components.shared import format_search_results_plain_text
 
+
 def test_format_search_results_empty():
     assert format_search_results_plain_text([]) == "No search results found."
+
 
 def test_format_search_results_single_basic():
     results = [{"title": "Test Title 1", "url": "http://example.com/1"}]
@@ -13,6 +14,7 @@ def test_format_search_results_single_basic():
         ---
     """)
     assert format_search_results_plain_text(results) == expected
+
 
 def test_format_search_results_single_with_match():
     results = [
@@ -32,6 +34,7 @@ def test_format_search_results_single_with_match():
         """)
     assert format_search_results_plain_text(results) == expected
 
+
 def test_format_search_results_single_with_non_array_content():
     results = [
         {
@@ -48,6 +51,7 @@ def test_format_search_results_single_with_non_array_content():
         ---
     """)
     assert format_search_results_plain_text(results) == expected
+
 
 def test_format_search_results_single_with_match_and_content():
     results = [
@@ -67,6 +71,7 @@ def test_format_search_results_single_with_match_and_content():
     """)
     assert format_search_results_plain_text(results) == expected
 
+
 def test_format_search_results_multiple():
     results = [
         {"title": "Result A", "url": "http://a.com"},
@@ -79,6 +84,7 @@ def test_format_search_results_multiple():
     """)
     assert format_search_results_plain_text(results) == expected
 
+
 def test_format_search_results_missing_title():
     results = [{"url": "http://example.com/notitle"}]
     expected = inspect.cleandoc("""
@@ -88,6 +94,7 @@ def test_format_search_results_missing_title():
     """)
     assert format_search_results_plain_text(results) == expected
 
+
 def test_format_search_results_missing_url():
     results = [{"title": "No URL Title"}]
     expected = inspect.cleandoc("""
@@ -96,6 +103,7 @@ def test_format_search_results_missing_url():
         ---
     """)
     assert format_search_results_plain_text(results) == expected
+
 
 def test_format_search_results_missing_both():
     results = [{}]

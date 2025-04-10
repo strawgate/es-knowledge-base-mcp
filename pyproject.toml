@@ -3,7 +3,7 @@ name = "esdocmanagermcp"
 version = "0.1.0"
 description = "An MCP server for crawling documentation, writing it to Elasticsearch for vector search retrieval by an LLM."
 authors = [
-    {name = "strawgate",email = "williamseaston@gmail.com"}
+    {name = "Bill Easton",email = "williamseaston@gmail.com"}
 ]
 readme = "README.md"
 requires-python = ">=3.13"
@@ -23,6 +23,9 @@ dependencies = [
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0","pip"]
 build-backend = "poetry.core.masonry.api" 
+
+[project.scripts]
+esdocmanagermcp = "esdocmanagermcp.server:main"
 
 [tool.poetry.group.dev.dependencies]
 ruff = "^0.11.2"

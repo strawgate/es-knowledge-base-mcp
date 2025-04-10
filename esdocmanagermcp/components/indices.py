@@ -1,7 +1,6 @@
 import logging
 from typing import List, Dict, Any, Optional
 from elasticsearch import AsyncElasticsearch, ApiError, ConnectionError
-from pydantic import BaseModel
 
 from esdocmanagermcp.components.errors.base import IndexListingError, UnknownSearchError
 
@@ -27,15 +26,11 @@ class IndicesManager:
         Returns:
             A list of dictionaries, each representing an index and its details.
         """
-        cat_args = {
-            'index': index_patterns,
-            'format': 'json',
-            'h': ['index', 'docs.count', 'creation.date.string']
-        }
+        cat_args = {"index": index_patterns, "format": "json", "h": ["index", "docs.count", "creation.date.string"]}
 
         try:
             response: List[Dict[str, Any]] = await self.es_client.cat.indices(**cat_args)
-            
+
             logger.info(f"Successfully retrieved {len(response)} indices.")
 
             return response
@@ -43,7 +38,6 @@ class IndicesManager:
             raise IndexListingError(f"API/Connection Error while retrieving indices: {e}") from e
         except Exception as e:
             raise UnknownSearchError(f"Unexpected error while retrieving indices: {e}") from e
-
 
     async def delete_elasticsearch_index(self, index_name: str) -> bool:
         """

@@ -31,15 +31,11 @@ def _prepare_files_tar_stream(files: List[InjectFile]) -> io.BytesIO:
                 # but put_archive needs it if copying to root. Let's strip for TarInfo.
                 tar_path = file_to_inject.filename.lstrip("/")
 
-                logger.debug(
-                    f"Adding file '{tar_path}' to tar stream (original: '{file_to_inject.filename}')"
-                )
+                logger.debug(f"Adding file '{tar_path}' to tar stream (original: '{file_to_inject.filename}')")
                 file_bytes = file_to_inject.content.encode("utf-8")
                 tarinfo = tarfile.TarInfo(name=tar_path)
                 tarinfo.size = len(file_bytes)
-                tarinfo.mtime = int(
-                    datetime.datetime.now(datetime.timezone.utc).timestamp()
-                )
+                tarinfo.mtime = int(datetime.datetime.now(datetime.timezone.utc).timestamp())
                 tar.addfile(tarinfo, io.BytesIO(file_bytes))
         tar_stream.seek(0)
         logger.debug(f"Prepared in-memory tar stream for {len(files)} files.")
@@ -91,31 +87,21 @@ async def start_container_with_files(
             "AutoRemove": False,  # Important for async management
         },
     }
-    logger.debug(
-        f"Preparing container '{container_name or 'unnamed'}' for image '{image_name}' with labels {labels}"
-    )
+    logger.debug(f"Preparing container '{container_name or 'unnamed'}' for image '{image_name}' with labels {labels}")
 
     try:
         # 1. Create Container
-        container = await docker_client.containers.create(
-            config=container_config, name=container_name
-        )
+        container = await docker_client.containers.create(config=container_config, name=container_name)
         # Use ID for logging consistency
-        container_id_log = (
-            container.id[:12] if container and hasattr(container, "id") else "N/A"
-        )
-        logger.info(
-            f"Container '{container_id_log}' created with name '{container_name or 'None'}'."
-        )
+        container_id_log = container.id[:12] if container and hasattr(container, "id") else "N/A"
+        logger.info(f"Container '{container_id_log}' created with name '{container_name or 'None'}'.")
 
         # 2. Prepare and Copy Files (if any)
         if files_to_inject:
             # This can raise RuntimeError
             tar_stream = _prepare_files_tar_stream(files_to_inject)
             try:
-                logger.debug(
-                    f"Copying {len(files_to_inject)} file(s) to container '{container_id_log}' at path '/'"
-                )
+                logger.debug(f"Copying {len(files_to_inject)} file(s) to container '{container_id_log}' at path '/'")
                 tar_data = tar_stream.read()
                 # Copy relative to root, InjectFile.filename contains full path
                 # This can raise DockerError
@@ -133,25 +119,17 @@ async def start_container_with_files(
 
     except (DockerError, RuntimeError, Exception) as e:
         # Log the primary error leading to potential cleanup
-        container_id_log = (
-            container.id[:12] if container and hasattr(container, "id") else "N/A"
-        )
-        logger.error(
-            f"Failed during setup/start of container '{container_id_log}' for image '{image_name}': {e}"
-        )
+        container_id_log = container.id[:12] if container and hasattr(container, "id") else "N/A"
+        logger.error(f"Failed during setup/start of container '{container_id_log}' for image '{image_name}': {e}")
         # Attempt cleanup if container object exists
         if container:
-            logger.warning(
-                f"Attempting cleanup of failed container {container_id_log}..."
-            )
+            logger.warning(f"Attempting cleanup of failed container {container_id_log}...")
             try:
                 await container.delete(force=True)
                 logger.info(f"Cleaned up failed container {container_id_log}.")
             except Exception as cleanup_err:
                 # Log cleanup error but raise the original error
-                logger.error(
-                    f"Failed to cleanup container {container_id_log} after setup/start error: {cleanup_err}"
-                )
+                logger.error(f"Failed to cleanup container {container_id_log} after setup/start error: {cleanup_err}")
         else:
             logger.warning(
                 f"Container object does not exist or failed before creation, no cleanup needed for image '{image_name}'."
@@ -170,9 +148,7 @@ async def list_containers(
     try:
         # Filter format: "label=key=value" or just "label=key"
         label_filter_str = label_filter if "=" in label_filter else f"{label_filter}"
-        containers = await docker_client.containers.list(
-            all=all_containers, filters={"label": [label_filter_str]}
-        )
+        containers = await docker_client.containers.list(all=all_containers, filters={"label": [label_filter_str]})
         container_list = [
             {
                 "id": c.id,
@@ -191,20 +167,14 @@ async def list_containers(
             }
             for c in containers
         ]
-        logger.debug(
-            f"Found {len(container_list)} containers with label filter '{label_filter_str}'"
-        )
+        logger.debug(f"Found {len(container_list)} containers with label filter '{label_filter_str}'")
         return container_list
     except DockerError as e:
-        logger.error(
-            f"Failed to list containers with label filter '{label_filter}': {e}"
-        )
+        logger.error(f"Failed to list containers with label filter '{label_filter}': {e}")
         raise
 
 
-async def get_container_details(
-    docker_client: aiodocker.Docker, container_id: str
-) -> Optional[Dict[str, Any]]:
+async def get_container_details(docker_client: aiodocker.Docker, container_id: str) -> Optional[Dict[str, Any]]:
     """Gets detailed info (from 'inspect') for a specific container ID."""
     container_id_short = container_id[:12]
     try:
@@ -214,20 +184,14 @@ async def get_container_details(
         return details
     except DockerError as e:
         if e.status == 404:
-            logger.warning(
-                f"Container '{container_id_short}' not found when getting details."
-            )
+            logger.warning(f"Container '{container_id_short}' not found when getting details.")
             return None
         else:
-            logger.error(
-                f"Failed to get details for container '{container_id_short}': {e}"
-            )
+            logger.error(f"Failed to get details for container '{container_id_short}': {e}")
             raise
 
 
-async def get_container_logs(
-    docker_client: aiodocker.Docker, container_id: str, tail: str = "all"
-) -> str:
+async def get_container_logs(docker_client: aiodocker.Docker, container_id: str, tail: str = "all") -> str:
     """Gets logs for a specific container ID. Raises RuntimeError if not found."""
     container_id_short = container_id[:12]
     try:
@@ -235,21 +199,15 @@ async def get_container_logs(
         log_opts = {"stdout": True, "stderr": True, "tail": tail}
         logs_stream = await container.log(**log_opts)
         logs = "".join(logs_stream)
-        logger.debug(
-            f"Retrieved logs (tail={tail}) for container '{container_id_short}'"
-        )
+        logger.debug(f"Retrieved logs (tail={tail}) for container '{container_id_short}'")
         return logs
     except DockerError as e:
         if e.status == 404:
-            logger.error(
-                f"Container '{container_id_short}' not found when getting logs."
-            )
+            logger.error(f"Container '{container_id_short}' not found when getting logs.")
             # Raise specific error as per plan
             raise RuntimeError(f"Container '{container_id_short}' not found.") from e
         else:
-            logger.error(
-                f"Failed to get logs for container '{container_id_short}': {e}"
-            )
+            logger.error(f"Failed to get logs for container '{container_id_short}': {e}")
             raise
 
 
@@ -258,14 +216,10 @@ async def get_container_logs(
 # region Cleanup Container
 
 
-async def remove_container(
-    docker_client: aiodocker.Docker, container_id: str, force: bool = True
-) -> bool:
+async def remove_container(docker_client: aiodocker.Docker, container_id: str, force: bool = True) -> bool:
     """Stops (implicitly via force=True) and removes a container. Returns True if removed, False if not found."""
     container_id_short = container_id[:12]
-    logger.warning(
-        f"Attempting to remove container '{container_id_short}' (force={force})..."
-    )
+    logger.warning(f"Attempting to remove container '{container_id_short}' (force={force})...")
     try:
         container = await docker_client.containers.get(container_id)
         # force=True in delete implicitly handles stopping if running
@@ -274,9 +228,7 @@ async def remove_container(
         return True
     except DockerError as e:
         if e.status == 404:
-            logger.warning(
-                f"Container '{container_id_short}' not found during removal attempt."
-            )
+            logger.warning(f"Container '{container_id_short}' not found during removal attempt.")
             return False  # Indicate it wasn't found
         else:
             logger.error(f"Failed to remove container '{container_id_short}': {e}")

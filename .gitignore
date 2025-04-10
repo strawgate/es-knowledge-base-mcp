@@ -8,3 +8,4 @@ run-mcp.sh
 .ruff_cache
 __pycache__
 references
+.env

@@ -21,9 +21,7 @@ from esdocmanagermcp.components.crawl import Crawler, CrawlerSettings
 from esdocmanagermcp.components.search import Searcher, SearcherSettings
 from esdocmanagermcp.components.indices import IndicesManager
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 crawler: Optional[Crawler] = None
@@ -127,16 +125,14 @@ async def app_lifespan(server: fastmcp.FastMCP) -> AsyncIterator[AppContext]:
         docker_client = context.docker_client
         indices_manager = context.indices_manager
 
-        #await update_dynamic_resources()
+        # await update_dynamic_resources()
 
         logger.info("yielding to mcp server")
 
         yield context
 
     except Exception as startup_error:
-        logger.critical(
-            f"Application startup failed critically: {startup_error}", exc_info=True
-        )
+        logger.critical(f"Application startup failed critically: {startup_error}", exc_info=True)
         raise
 
     finally:
@@ -169,12 +165,7 @@ async def app_lifespan(server: fastmcp.FastMCP) -> AsyncIterator[AppContext]:
 # endregion Lifespan
 
 # --- Initialize FastMCP Server ---
-mcp = fastmcp.FastMCP(
-    "esdocmanagermcp",
-    transport=mcp_transport_setting,
-    lifespan=app_lifespan,
-    log_level="ERROR"
-)
+mcp = fastmcp.FastMCP("esdocmanagermcp", transport=mcp_transport_setting, lifespan=app_lifespan, log_level="ERROR")
 logger.info("FastMCP server instance created, running %s.", mcp_transport_setting)
 # endregion Globals
 
@@ -197,21 +188,17 @@ async def get_documentation_types(include_doc_count: bool = False) -> List[Dict[
     results.sort(key=lambda x: x["index"])
 
     if not include_doc_count:
-        return "\n".join(
-            [
-                result["index"].split(searcher.settings.es_index_prefix + "-")[1]
-                for result in results
-            ]
-        )
+        return "\n".join([result["index"].split(searcher.settings.es_index_prefix + "-")[1] for result in results])
 
     return [
         {
             "type": result["index"].split(searcher.settings.es_index_prefix + "-")[1],
-            #"creation_date": result["creation.date.string"] if include_creation_date else None,
+            # "creation_date": result["creation.date.string"] if include_creation_date else None,
             "documents": result["docs.count"] if include_doc_count else None,
         }
         for result in results
     ]
+
 
 @mcp.tool()
 async def delete_documentation(type: str) -> str:
@@ -225,7 +212,7 @@ async def delete_documentation(type: str) -> str:
 
     if "*" in type:
         raise ValueError("Wildcard '*' is not allowed in the type name.")
-    
+
     logger.info(f"Tool: Received request to delete documentation index type '{type}' (full name: '{full_index_name}')")
 
     success = await indices_manager.delete_elasticsearch_index(full_index_name)
@@ -234,8 +221,10 @@ async def delete_documentation(type: str) -> str:
         return f"Documentation index type '{type}' (index: {full_index_name}) was deleted or did not exist."
     else:
         return f"Error deleting documentation index type '{type}'. Check server logs for details."
-    
+
+
 # endregion Indices
+
 
 # region Crawler
 @mcp.tool()
@@ -244,7 +233,7 @@ async def pull_crawler_image() -> str:
     Pulls the configured crawler Docker image ('crawler_image' setting) if not present locally.
     """
     logger.info("Tool Shim: Received request to pull crawler image.")
-    
+
     await crawler.pull_crawler_image()
 
     return f"Image '{crawler.settings.crawler_image}' is available locally or was pulled successfully."
@@ -259,12 +248,12 @@ async def crawl_domains(
 
     Args:
     - `seed_pages`: Each URL in this list will be checked for content. When crawling, we'll follow links which match everything
-      after the last `/` of the seed_page provided. Useful when your seed_url is a markdown, html or other file and you want sibling pages 
-      to be included. For example if https://github.com/microsoft/vscode/blob/main/README.md is provided, all pages starting with 
+      after the last `/` of the seed_page provided. Useful when your seed_url is a markdown, html or other file and you want sibling pages
+      to be included. For example if https://github.com/microsoft/vscode/blob/main/README.md is provided, all pages starting with
       `https://github.com/microsoft/vscode/blob/main/` will be crawled.
     - `seed_dirs`: Each URL in this list will be checked for content. When crawling, we'll only follow links to child pages of the seed_dir
       provided. That is, we'll only follow links which start with the seed_dir url provided. For example if `https://github.com/microsoft/vscode` is provided, only pages
-      starting with `https://github.com/microsoft/vscode` will be crawled. Useful when removing everything after the 
+      starting with `https://github.com/microsoft/vscode` will be crawled. Useful when removing everything after the
       last `/` would result in scraping hundreds of thousands of pages, i.e. `https://github.com/microsoft` would scrape all of github.
 
     Returns:
@@ -272,42 +261,40 @@ async def crawl_domains(
         including 'seed_url', 'scope_type', 'start_status' ('success' or 'error'),
         'container_id' (on success), or 'message' (on error).
     """
-    
+
     # Ensure seed_pages and seed_dirs are lists
     seed_pages = [seed_pages] if isinstance(seed_pages, str) else seed_pages or []
     seed_dirs = [seed_dirs] if isinstance(seed_dirs, str) else seed_dirs or []
-    
+
     logger.info(f"Tool: Received crawl_domains request. Pages: {len(seed_pages)}, Dirs: {len(seed_dirs)}.")
-    
+
     crawler_jobs_to_start = []
 
     results = []
 
     for page_url in seed_pages:
-        if page_url == '':
+        if page_url == "":
             continue
         logger.debug(f"Processing seed page: {page_url}")
 
         try:
             crawl_params = crawler.derive_crawl_params_from_url(page_url)
             crawler_jobs_to_start.append(crawl_params)
-        except Exception as e: # Blanket exception for now, we can be more specific later
+        except Exception as e:  # Blanket exception for now, we can be more specific later
             logger.error(f"Error processing seed page {page_url}: {e}", exc_info=True)
             results.append({"seed_url": page_url, "success": False, "message": str(e)})
 
-    
     for dir_url in seed_dirs:
-        if dir_url == '':
+        if dir_url == "":
             continue
         logger.debug(f"Processing seed directory: {dir_url}")
 
         try:
             crawl_params = crawler.derive_crawl_params_from_dir(dir_url)
             crawler_jobs_to_start.append(crawl_params)
-        except Exception as e: # Blanket exception for now, we can be more specific later
+        except Exception as e:  # Blanket exception for now, we can be more specific later
             logger.error(f"Error processing seed directory {dir_url}: {e}", exc_info=True)
             results.append({"seed_url": dir_url, "success": False, "message": str(e)})
-
 
     for params in crawler_jobs_to_start:
         domain = params["domain"]
@@ -318,11 +305,8 @@ async def crawl_domains(
         logger.debug(f"Derived parameters for {page_url}: {params}")
 
         container_id = await crawler.crawl_domain(
-            domain=domain,
-            seed_url=page_url,
-            filter_pattern=filter_pattern,
-            output_index_suffix=output_index_suffix
-        ) 
+            domain=domain, seed_url=page_url, filter_pattern=filter_pattern, output_index_suffix=output_index_suffix
+        )
 
         logger.info(f"Successfully initiated crawl for page {page_url}, container ID: {container_id[:12]}")
 
@@ -338,7 +322,7 @@ async def list_crawls() -> str:
     Lists currently running or recently completed crawl containers managed by this server.
     """
     logger.info("Tool Shim: Received request to list crawls.")
-    
+
     containers: List[Dict[str, Any]] = await crawler.list_crawls()
 
     if not containers:
@@ -353,13 +337,12 @@ async def list_crawls() -> str:
         c_domain = container.get("labels", {}).get(crawler.DOMAIN_LABEL, "N/A")
         c_completed = True if c_status.startswith("Exited") else False
         c_errored = True if c_completed and not c_status.startswith("Exited (0)") else False
-        #c_succeeded = not c_errored
+        # c_succeeded = not c_errored
         formatted_list.append(
             f"  - Domain: {c_domain}, Done: {c_completed}, Errored: {c_errored}, ID: {c_id}, Name: {c_name}, , State: {c_state}, Status: {c_status}"
         )
 
     return "\n".join(formatted_list)
-
 
 
 @mcp.tool()
@@ -370,15 +353,11 @@ async def get_crawl_status(container_id: str) -> str:
     Args:
         container_id: The full or short ID of the container.
     """
-    logger.info(
-        f"Tool Shim: Received request for status of container '{container_id[:12]}'."
-    )
-    
+    logger.info(f"Tool Shim: Received request for status of container '{container_id[:12]}'.")
+
     status_data: Dict[str, Any] = await crawler.get_crawl_status(container_id)
 
-    formatted_status = [
-        f"Status for Container ID: {status_data.get('short_id', 'N/A')}"
-    ]
+    formatted_status = [f"Status for Container ID: {status_data.get('short_id', 'N/A')}"]
     for key, value in status_data.items():
         formatted_status.append(f"  - {key.replace('_', ' ').title()}: {value}")
 
@@ -394,17 +373,11 @@ async def get_crawl_logs(container_id: str, tail: str = "all") -> str:
         container_id: The full or short ID of the container.
         tail: Number of lines to show from the end of the logs (e.g., "100", default: "all").
     """
-    logger.info(
-        f"Tool Shim: Received request for logs of container '{container_id[:12]}' (tail={tail})."
-    )
+    logger.info(f"Tool Shim: Received request for logs of container '{container_id[:12]}' (tail={tail}).")
 
     logs: str = await crawler.get_crawl_logs(container_id, tail)
 
-    return (
-        logs
-        if logs
-        else f"No logs found or container '{container_id[:12]}' does not exist."
-    )
+    return logs if logs else f"No logs found or container '{container_id[:12]}' does not exist."
 
 
 @mcp.tool()
@@ -416,7 +389,7 @@ async def stop_crawl(container_id: str) -> str:
         container_id: The full or short ID of the container.
     """
     logger.info(f"Tool Shim: Received request to stop container '{container_id[:12]}'.")
-    
+
     await crawler.stop_crawl(container_id)
 
     return f"Container '{container_id[:12]}' stopped and removed successfully."
@@ -432,7 +405,9 @@ async def remove_completed_crawls() -> Dict[str, Any]:
     result = await crawler.remove_completed_crawls()
     return result
 
+
 # endregion Crawler
+
 
 # region Searcher
 @mcp.tool()
@@ -448,9 +423,7 @@ async def search_specific_documentation(types: str, query: str) -> dict:
     Returns:
         A dictionary containing search results.
     """
-    logger.info(
-        f"Tool: Received search request for types '{types}' with query '{query}'."
-    )
+    logger.info(f"Tool: Received search request for types '{types}' with query '{query}'.")
 
     search_results = await searcher.documentation_search(type=types, query=query)
     return {"search_results": search_results}
@@ -462,7 +435,7 @@ async def search_all_documentation(question: str, results: int = 5) -> dict:
     Performs a vector search query against all documentation indices. Gather the list of types from the get_documentation_types tool
     and use wildcards like `*python*` or `*pytest*,*python*`. Target as many types as will be useful. We use vector search and scoring
     to return the most useful hits so make sure your query describes what you're looking for! Access to documentation significantly
-    improves your responses by making detailed documentation available that is relevant to what you're working on. 
+    improves your responses by making detailed documentation available that is relevant to what you're working on.
 
     Args:
         type: The documentation types to query, can be comma separated and include trailing or leading wildcards.
@@ -473,9 +446,7 @@ async def search_all_documentation(question: str, results: int = 5) -> dict:
         A dictionary containing search results.
 
     """
-    logger.info(
-        f"Tool: Received search request for all docs with query '{question}'."
-    )
+    logger.info(f"Tool: Received search request for all docs with query '{question}'.")
 
     search_results = await searcher.documentation_search(type="*", query=question, results=results)
 
@@ -493,11 +464,7 @@ async def get_document_by_url(doc_url: str) -> Optional[Dict[str, Any]]:
     """
     logger.info(f"Tool: Received get_document_by_url request for URL '{doc_url}''.")
 
-    query_part = {
-        "term": {
-            "url.keyword": doc_url
-        }
-    }
+    query_part = {"term": {"url.keyword": doc_url}}
 
     search_result = await searcher.get_document_by_query(query_body=query_part, types="*")
 
@@ -515,23 +482,26 @@ async def get_document_by_title(doc_title: str) -> Optional[Dict[str, Any]]:
     """
     logger.info(f"Tool: Received get_document_by_title request for title '{doc_title}'.")
 
-    query_part = {
-        "match": {
-            "title": doc_title
-        }
-    }
+    query_part = {"match": {"title": doc_title}}
 
     search_result = await searcher.get_document_by_query(query_body=query_part, types="*")
 
     return format_search_results_plain_text(search_results=search_result)
 
+
 # endregion Searcher
 
 # region Main Execution
 
-if __name__ == "__main__":
+
+def main():
+    """Main entry point to run the MCP server."""
     logger.info("Starting MCP server...")
-    mcp.run(mcp_transport_setting)#"sse")
+    mcp.run(mcp_transport_setting)
     logger.info("MCP server stopped.")
+
+
+if __name__ == "__main__":
+    main()
 
 # endregion Main Execution

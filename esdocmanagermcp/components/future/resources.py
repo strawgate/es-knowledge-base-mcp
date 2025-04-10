@@ -1,4 +1,3 @@
-
 # async def update_dynamic_resources():
 #     """
 #     Updates MCP dynamic resources based on available documentation indices.

@@ -54,6 +54,7 @@ class SearchExecutionError(SearchError):
 
     pass
 
+
 class UnknownSearchError(SearchError):
     """An unknown error occurred during the search operation."""
 

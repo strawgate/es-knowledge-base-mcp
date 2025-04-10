@@ -93,11 +93,9 @@ class Crawler:
 
         return InjectFile(filename=config_container_path, content=yaml.dump(config, indent=2))
 
-    def _derive_destination_index_name(
-        self, domain: str, path: str
-    ):
+    def _derive_destination_index_name(self, domain: str, path: str):
         """Derive an index-friendly name from the domain and path.
-        
+
         Args:
             domain (str): The domain name.
             path (str): The path to be included in the index name.
@@ -127,9 +125,7 @@ class Crawler:
 
         return destination_index_name
 
-    def derive_crawl_params_from_dir(
-        self, seed_dir: str
-    ) -> Dict[str, str]:
+    def derive_crawl_params_from_dir(self, seed_dir: str) -> Dict[str, str]:
         """
         Derives crawl parameters from a directory seed URL.
         Args:
@@ -155,19 +151,17 @@ class Crawler:
         return {
             "domain": scheme + "://" + domain,
             "filter_pattern": filter_pattern,
-            "page_url": seed_dir,
-            "output_index_suffix": self._derive_destination_index_name(domain, path)
+            "page_url": scheme + "://" + domain + path,
+            "output_index_suffix": self._derive_destination_index_name(domain, path),
         }
 
-    def derive_crawl_params_from_url(
-        self, seed_url: str
-    ) -> Dict[str, str]:
+    def derive_crawl_params_from_url(self, seed_url: str) -> Dict[str, str]:
         """Derives crawl parameters from a URL seed URL.
         Args:
             seed_url: The URL seed URL to process.
         Returns:
             A dictionary containing "domain", "filter_pattern", and "output_index_suffix".
-        
+
         Example:
         >>> derive_crawl_params_from_url("http://example.com/full-path/to/resource/index.html")
         {
@@ -191,9 +185,9 @@ class Crawler:
 
         return {
             "domain": scheme + "://" + domain,
-            "page_url": seed_url,
+            "page_url": scheme + "://" + domain + path,
             "filter_pattern": filter_pattern,
-            "output_index_suffix": self._derive_destination_index_name(domain, path)
+            "output_index_suffix": self._derive_destination_index_name(domain, path),
         }
 
     # region Public Methods
@@ -235,7 +229,7 @@ class Crawler:
                 },
             )
             return container_id
-        
+
         except (DockerError, RuntimeError) as e:
             raise ContainerStartFailedError(f"Failed to start container for domain '{domain}': {e}") from e
 
@@ -297,7 +291,6 @@ class Crawler:
         if not removed:
             raise ContainerNotFoundError(f"Container '{container_id[:12]}' not found.")
 
-
     async def remove_completed_crawls(self) -> Dict[str, Any]:
         """
         Removes all completed (exited) crawl containers managed by this component.
@@ -332,7 +325,7 @@ class Crawler:
             except DockerError as e:
                 logger.error(f"Failed to remove container {short_id}: {e}")
                 errors.append({"container_id": short_id, "error": str(e)})
-            except Exception as e: # Catch broad exceptions during cleanup to avoid stopping the entire process
+            except Exception as e:  # Catch broad exceptions during cleanup to avoid stopping the entire process
                 logger.error(f"Unexpected error removing container {short_id}: {e}")
                 errors.append({"container_id": short_id, "error": f"Unexpected error: {str(e)}"})
 

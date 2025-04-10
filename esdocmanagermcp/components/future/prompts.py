@@ -1,4 +1,3 @@
-
 # @mcp.prompt()
 # async def get_started_with_documentation() -> str:
 #     """When using the docs tool, always start by searching for dependencies, finding the web url of the online documentation, and then using the crawl_domain tool to crawl the documentation."""
@@ -54,8 +53,8 @@
 #     filter_pattern = "/".join(
 #         path_components[: len(path_components) - 1]
 #     ) if len(path_components) >= 2 else parsed_url.path
-    
-#     # take the domain and filtered_path, and convert 
+
+#     # take the domain and filtered_path, and convert
 #     #www_elastic_co.guide_en_elasticsearch_reference_current
 #     recommended_index_suffix = f"{domain.replace('.', '_')}.{'_'.join(path_components[1:-1])}"
 
@@ -73,7 +72,6 @@
 #         f"  crawl_domain(domain='{domain}', seed_url='{seed_url}', filter_pattern='{filter_pattern}', output_index_suffix='{recommended_index_suffix}')\n\n"
 #     )
 #     return guidance
-
 
 
 # @mcp.prompt(
