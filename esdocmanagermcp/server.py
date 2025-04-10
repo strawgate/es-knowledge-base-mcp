@@ -252,9 +252,14 @@ async def crawl_domains(
       to be included. For example if https://github.com/microsoft/vscode/blob/main/README.md is provided, all pages starting with
       `https://github.com/microsoft/vscode/blob/main/` will be crawled.
     - `seed_dirs`: Each URL in this list will be checked for content. When crawling, we'll only follow links to child pages of the seed_dir
-      provided. That is, we'll only follow links which start with the seed_dir url provided. For example if `https://github.com/microsoft/vscode` is provided, only pages
+      provided. That is, we'll only follow links which start with the seed_dir url provided. For example if `https://github.com/microsoft/vscode/` is provided, only pages
       starting with `https://github.com/microsoft/vscode` will be crawled. Useful when removing everything after the
       last `/` would result in scraping hundreds of thousands of pages, i.e. `https://github.com/microsoft` would scrape all of github.
+
+    Warnings:
+    - Avoid crawling the root of a Github repository, crawl /blob/main/ or /tree/main/ instead unless you want all issues, discussions, PRs, commits, etc.
+        if you do want to crawl those, crawl them as their own seed_dirs so you can update/prune without re-crawling everything again.
+    - Avoid crawling large websites without a specific seed page or directory, as it may result in excessive data scraping.
 
     Returns:
         A list of dictionaries, each containing the result for a processed seed URL,
@@ -413,7 +418,8 @@ async def remove_completed_crawls() -> Dict[str, Any]:
 @mcp.tool()
 async def search_specific_documentation(types: str, query: str) -> dict:
     """
-    Performs a search query against a specified documentation index. We use vector search and scoring
+    Performs a search query against a specified documentation index. Gather the list of types from the get_documentation_types tool
+    and use wildcards like `*python*` or `*pytest*,*python*`. Target as many types as will be useful. We use vector search and scoring
     to return the most useful hits so make sure your query describes what you're looking for!
 
     Args:
@@ -430,17 +436,15 @@ async def search_specific_documentation(types: str, query: str) -> dict:
 
 
 @mcp.tool()
-async def search_all_documentation(question: str, results: int = 5) -> dict:
+async def search_all_documentation(question: str, results: int = 8) -> dict:
     """
-    Performs a vector search query against all documentation indices. Gather the list of types from the get_documentation_types tool
-    and use wildcards like `*python*` or `*pytest*,*python*`. Target as many types as will be useful. We use vector search and scoring
+    Performs a vector search query against all documentation indices. We use vector search and scoring
     to return the most useful hits so make sure your query describes what you're looking for! Access to documentation significantly
     improves your responses by making detailed documentation available that is relevant to what you're working on.
 
     Args:
-        type: The documentation types to query, can be comma separated and include trailing or leading wildcards.
         question: What are you searching for or what problem are you trying to solve in plain english?
-        results: How many answers to request (defaults to 5). Do not provide unless your initial query does not answer your question.
+        results: How many answers to request (defaults to 8). Do not provide unless your initial query does not answer your question.
 
     Returns:
         A dictionary containing search results.

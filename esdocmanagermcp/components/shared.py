@@ -204,6 +204,8 @@ def format_search_results_plain_text(search_results: List[Dict[str, Any]]) -> st
     if not search_results:
         return "No search results found."
 
+    results = []
+
     for i, result in enumerate(search_results):
         title = result.get("title", "No title found")
         url = result.get("url", "No URL found")
@@ -221,9 +223,9 @@ def format_search_results_plain_text(search_results: List[Dict[str, Any]]) -> st
                 url=url,
                 matches=matches_str,
             )
-            return formatted_string
+            results.append(formatted_string)
 
-        if content := result.get("content"):
+        elif content := result.get("content"):
             formatted_string = inspect.cleandoc("""
                 Title: {title}
                 URL: {url}
@@ -235,17 +237,19 @@ def format_search_results_plain_text(search_results: List[Dict[str, Any]]) -> st
                 url=url,
                 content=content.strip(),
             )
-            return formatted_string
+            results.append(formatted_string)
+        else:
+            formatted_string = inspect.cleandoc("""
+                Title: {title}
+                URL: {url}
+                ---
+            """).format(
+                title=title,
+                url=url,
+            )
+            results.append(formatted_string)
 
-        formatted_string = inspect.cleandoc("""
-            Title: {title}
-            URL: {url}
-            ---
-        """).format(
-            title=title,
-            url=url,
-        )
-        return formatted_string
+        return "\n".join(results)
 
 
 # endregion Utility Functions
