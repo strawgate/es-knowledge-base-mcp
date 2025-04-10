@@ -5,19 +5,62 @@
 This MCP server provides tools to your AI Assitant allowing it to crawl and search documentation autonomously. It utilizes the `FastMCP` framework for simplified development and interacts with:
 
 1.  A Docker container running the `ghcr.io/strawgate/es-crawler:main` image (or as configured via `CRAWLER_IMAGE` env var) to perform the actual web crawling.
-2.  An Elasticsearch cluster for index listing and ELSER-powered searching. Indices created will use the prefix `docsmcp-` by default (configurable via `ES_INDEX_PREFIX` env var).
+2.  An Elasticsearch cluster for index listing and ELSER-powered searching. Indices created will use the prefix `docsmcp-` by default (configurable via `ES_INDEX_PREFIX` env var). Using an [Elasticsearch Serverless Search project](https://www.elastic.co/guide/en/serverless/current/what-is-elasticsearch-serverless.html) is a lightning fast way to get started.
 
 ## Configuration
 
 This server requires connection details for your Elasticsearch cluster and is configured directly within your MCP host's settings file (e.g., `mcp_settings.json` for the Roo VS Code extension).
 
-The recommended way to run this server is using `uvx`, which handles fetching and running the code directly from GitHub. Add the following configuration block to your `mcpServers` object:
+The recommended way to run this server is using `uvx`, which handles fetching and running the code directly from GitHub. 
+
+### VS Code 
+
+1. Open the command palette (Ctrl+Shift+P or Cmd+Shift+P).
+2. Type "Settings" and select "Preferences: Open User Settings (JSON)".
+3. Add the following MCP Server configuration
+
+```json
+{
+    "mcp": {
+        "inputs": [
+
+            {
+                "type": "promptString",
+                "id": "es-host",
+                "description": "Elasticsearch Host",
+                "password": false
+            },
+            {
+                "type": "promptString",
+                "id": "es-api-key",
+                "description": "Elasticsearch API Key",
+                "password": false
+            }
+        ],
+        "servers": {
+            "External Documentation - GitHub": {
+                "command": "uvx",
+                "args": [
+                    "git+https://github.com/strawgate/es-documentation-manager-mcp"
+                ],
+                "env": {
+                    "ES_HOST": "${input:es-host}",
+                    "ES_API_KEY": "${input:es-api-key}",
+                },
+            }
+        }
+    }
+}
+```
+
+### Cline / Roo Code
+Add the following configuration block to your `mcpServers` object:
 
 ```json
   "External Documentation": {
       "command": "uvx",
       "args": [
-        "https://github.com/strawgate/es-documentation-manager-mcp.git"
+        "git+https://github.com/strawgate/es-documentation-manager-mcp"
       ],
       "env": {
         "ES_HOST": "https://YOUR_ELASTICSEARCH_HOST_URL:443",

@@ -12,6 +12,7 @@ import mcp.server.fastmcp as fastmcp
 
 from esdocmanagermcp.components.shared import (
     AppSettings,
+    LoggingSettings,
     TransportSettings,
     create_es_client,
     generate_index_template,
@@ -22,14 +23,12 @@ from esdocmanagermcp.components.crawl import Crawler, CrawlerSettings
 from esdocmanagermcp.components.search import Searcher, SearcherSettings
 from esdocmanagermcp.components.indices import IndicesManager
 
-logging.basicConfig(level=logging.ERROR, format="%(asctime)s - %(levelname)s - %(message)s")
-logging.FileHandler("esdocmanagermcp.log", mode="a")
-logging.StreamHandler()
+logging_settings = LoggingSettings()
 
 # disable pydantic validation error logging
-logging.getLogger("pydantic").setLevel(logging.CRITICAL)
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
+
 
 crawler: Optional[Crawler] = None
 searcher: Optional[Searcher] = None
@@ -139,8 +138,7 @@ async def app_lifespan(server: fastmcp.FastMCP) -> AsyncIterator[AppContext]:
         yield context
 
     except Exception as startup_error:
-        logger.critical(f"Application startup failed critically: {startup_error}", exc_info=True)
-        raise
+        raise RuntimeError(f"Application startup failed: {startup_error}")
 
     finally:
         logger.info("Executing application shutdown sequence...")

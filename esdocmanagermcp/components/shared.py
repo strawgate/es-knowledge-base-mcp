@@ -1,6 +1,7 @@
 import logging
 import inspect
 
+import os
 from typing import Any, List, Optional, Dict
 from urllib.parse import urlparse
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -9,6 +10,28 @@ from elasticsearch import AsyncElasticsearch
 
 logger = logging.getLogger(__name__)
 
+class LoggingSettings(BaseSettings):
+    """Settings for configuring logging."""
+
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+
+    log_level: str = Field("INFO", validation_alias="LOG_LEVEL")
+
+    # include the PID in the log format
+    log_format: str = Field(
+        f"%(asctime)s : {os.getpid()} - %(name)s - %(levelname)s - %(message)s",
+        validation_alias="LOG_FORMAT",
+    )
+    log_file: Optional[str] = Field(None, validation_alias="LOG_FILE")
+
+    def configure_logging(self):
+        """Configure logging based on the settings."""
+        logging.basicConfig(
+            level=self.log_level,
+            format=self.log_format,
+            filename=self.log_file,
+            filemode="a",
+        )
 
 class TransportSettings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
