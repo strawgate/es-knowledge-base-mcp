@@ -22,8 +22,8 @@ from esdocmanagermcp.components.crawl import Crawler, CrawlerSettings
 from esdocmanagermcp.components.search import Searcher, SearcherSettings
 from esdocmanagermcp.components.indices import IndicesManager
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-logging.FileHandler("esdocmanagermcp.log", mode="a", level=logging.DEBUG)
+logging.basicConfig(level=logging.DEBUG, format="%(asctime)s - %(levelname)s - %(message)s")
+logging.FileHandler("esdocmanagermcp.log", mode="a")
 logging.StreamHandler()
 
 # disable pydantic validation error logging
