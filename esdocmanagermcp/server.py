@@ -12,6 +12,7 @@ import mcp.server.fastmcp as fastmcp
 
 from esdocmanagermcp.components.shared import (
     AppSettings,
+    LoggingSettings,
     TransportSettings,
     create_es_client,
     generate_index_template,
@@ -22,8 +23,7 @@ from esdocmanagermcp.components.crawl import Crawler, CrawlerSettings
 from esdocmanagermcp.components.search import Searcher, SearcherSettings
 from esdocmanagermcp.components.indices import IndicesManager
 
-logging.basicConfig(
-    filename='esdocmanagermcp.log', level=logging.DEBUG, format="%(asctime)s - %(levelname)s - %(message)s")
+logging_settings = LoggingSettings()
 
 # disable pydantic validation error logging
 logger = logging.getLogger(__name__)
