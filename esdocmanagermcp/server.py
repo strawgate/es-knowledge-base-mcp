@@ -138,7 +138,7 @@ async def app_lifespan(server: fastmcp.FastMCP) -> AsyncIterator[AppContext]:
         yield context
 
     except Exception as startup_error:
-        raise RuntimeError(f"Application startup failed: {startup_error}") from startup_error
+        raise RuntimeError(f"Application startup failed: {startup_error}")
 
     finally:
         logger.info("Executing application shutdown sequence...")
