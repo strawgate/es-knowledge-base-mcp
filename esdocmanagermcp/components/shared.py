@@ -276,7 +276,7 @@ def format_search_results_plain_text(search_results: List[Dict[str, Any]]) -> st
             )
             results.append(formatted_string)
 
-        return "\n".join(results)
+    return "\n".join(results)
 
 
 # endregion Utility Functions
