@@ -2,7 +2,7 @@
 
 ## Overview
 
-This MCP server provides tools to your AI Assitant allowing it to crawl and search documentation autonomously. It utilizes the `FastMCP` framework for simplified development and interacts with:
+This MCP server provides tools to your AI Assistant allowing it to crawl and search documentation autonomously. It utilizes the `FastMCP` framework for simplified development and interacts with:
 
 1.  A Docker container running the `ghcr.io/strawgate/es-crawler:main` image (or as configured via `CRAWLER_IMAGE` env var) to perform the actual web crawling.
 2.  An Elasticsearch cluster for index listing and ELSER-powered searching. Indices created will use the prefix `docsmcp-` by default (configurable via `ES_INDEX_PREFIX` env var). Using an [Elasticsearch Serverless Search project](https://www.elastic.co/guide/en/serverless/current/what-is-elasticsearch-serverless.html) is a lightning fast way to get started.
@@ -11,9 +11,13 @@ This MCP server provides tools to your AI Assitant allowing it to crawl and sear
 
 ### Searching Documentation
 
-https://github.com/user-attachments/assets/2aa7155a-5d54-4ffe-aa4a-4bb0914c6297
+In this demo we plan out a project that relies on several specific APIs in Elasticsearch. The LLM autonomously vector searches the documentation to get the nitty gritty API details and response examples it'll need to properly implement the project:
+
+https://github.com/user-attachments/assets/64b5fee1-a983-4a92-9485-bfc54f879374
 
 ### Crawling Documentation
+
+In this demo we open a git repository and tell the LLM we're getting started with this project. It proceeds to look at the dependencies and grab relevant documentation.
 
 https://github.com/user-attachments/assets/c7226aa9-9b40-45fb-877b-8721550e0576
 
