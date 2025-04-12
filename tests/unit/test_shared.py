@@ -81,6 +81,11 @@ def test_format_search_results_multiple():
         Title: Result A
         URL: http://a.com
         ---
+        Title: Result B
+        URL: http://b.com
+        Relevant Snippets:
+        - b match
+        ---
     """)
     assert format_search_results_plain_text(results) == expected
 
