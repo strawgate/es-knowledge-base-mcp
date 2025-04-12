@@ -83,6 +83,8 @@ class Searcher:
             "highlight": {"fields": {"body": {}}},
         }
 
+        logger.debug(f"Target: {target_indices}, Search body: {search_body}")
+
         async with self.error_wrapper("searching", f"index '{target_indices}'"):
             response: ObjectApiResponse[dict] = await self.es_client.search(index=target_indices, **search_body)
 
