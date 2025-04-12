@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 class LoggingSettings(BaseSettings):
     """Settings for configuring logging."""
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict()#env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     log_level: str = Field("INFO", validation_alias="LOG_LEVEL")
 
@@ -35,7 +35,7 @@ class LoggingSettings(BaseSettings):
         )
 
 class TransportSettings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict()#env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     mcp_transport: str = Field("stdio", validation_alias="MCP_TRANSPORT")
 
@@ -43,7 +43,7 @@ class TransportSettings(BaseSettings):
 class AppSettings(BaseSettings):
     """Manages application configuration using environment variables."""
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict()#env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     es_host: str = Field(..., validation_alias="ES_HOST")
     es_pipeline: str = Field("search-default-ingestion", validation_alias="ES_PIPELINE")
