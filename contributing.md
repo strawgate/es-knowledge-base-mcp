@@ -21,7 +21,7 @@ This document outlines how to set up the Elasticsearch Documentation Manager MCP
     ```
 3.  **Install dependencies using `uv`:**
     ```bash
-    uv sync
+    uv sync --extra dev
     ```
 
 ## Local Configuration & Running

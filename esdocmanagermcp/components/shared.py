@@ -184,8 +184,8 @@ def get_crawler_es_settings(settings: AppSettings):
         "host": es_host,  # e.g., https://cluster.aws.elastic.cloud
         "port": es_port,  # e.g., 443
         "request_timeout": 600,
-        "elasticsearch.bulk_api.max_items": 1000,
-        "elasticsearch.bulk_api.max_size_bytes": 10485760,
+        "bulk_api.max_items": 200,
+        "bulk_api.max_size_bytes": 10485760, # 10MB
         "pipeline": settings.es_pipeline,
     }
     if settings.es_api_key:
