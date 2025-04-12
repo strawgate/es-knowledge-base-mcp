@@ -24,11 +24,10 @@ from esdocmanagermcp.components.search import Searcher, SearcherSettings
 from esdocmanagermcp.components.indices import IndicesManager
 
 logging_settings = LoggingSettings()
+logging_settings.configure_logging()
 
 # disable pydantic validation error logging
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-
 
 crawler: Optional[Crawler] = None
 searcher: Optional[Searcher] = None

@@ -31,6 +31,7 @@ class LoggingSettings(BaseSettings):
             format=self.log_format,
             filename=self.log_file,
             filemode="a",
+            force=True
         )
 
 class TransportSettings(BaseSettings):
