@@ -1,4 +1,4 @@
-# Elasticsearch Documentation Manager MCP Server
+# Elasticsearch Knowledge Base MCP Server
 
 ## Overview
 
@@ -101,7 +101,7 @@ Add the following configuration block to your `mcpServers` object:
 
 ## Features / Tools
 
-The server exposes the following tools for use by MCP clients (like AI agents), based on the connected `esdocmanagermcp` server:
+The server exposes the following tools for use by MCP clients (like AI agents), based on the connected `es_knowledge_base_mcp` server:
 
 *   **`get_documentation_types(include_doc_count: bool = False)`**:
     *   **Description:** Retrieves the list of documentation types (indices) available. Useful for discovering specific indices to target with `search_specific_documentation`.

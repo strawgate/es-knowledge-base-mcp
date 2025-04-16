@@ -1,6 +1,6 @@
 # Contributing & Local Development
 
-This document outlines how to set up the Elasticsearch Documentation Manager MCP Server for local development and debugging. For standard usage instructions, please refer to the main [README.md](readme.md).
+This document outlines how to set up the Elasticsearch Knowledge Base MCP Server for local development and debugging. For standard usage instructions, please refer to the main [README.md](readme.md).
 
 ## Prerequisites
 
@@ -50,7 +50,7 @@ ES_PIPELINE="your-ingest-pipeline-name"
 MCP_TRANSPORT="sse"
 
 # --- Optional Settings ---
-# ES_INDEX_PREFIX="docsmcp" # Prefix for created indices (default: "docsmcp")
+# ES_INDEX_PREFIX="kbmcp" # Prefix for created indices (default: "kbmcp")
 # CRAWLER_IMAGE="ghcr.io/strawgate/es-crawler:main" # Crawler image to use (default: ghcr.io/strawgate/es-crawler:main)
 ```
 
@@ -59,7 +59,7 @@ MCP_TRANSPORT="sse"
 With the environment variables set (either exported in your shell or defined in `.env`), run the server using `uv`:
 
 ```bash
-uv run python esdocmanagermcp/server.py
+uv run python es_knowledge_base_mcp/server.py
 ```
 
 This command executes the `main()` function within the `server.py` script. The server will start and listen for MCP connections based on the `MCP_TRANSPORT` setting.
@@ -71,14 +71,14 @@ If you want to test the locally running server with your MCP host (e.g., Roo VS 
 ```json
 {
   "mcpServers": {
-    "esdocmanagermcp-local": { // Use a distinct name like "-local"
+    "es_knowledge_base_mcp-local": { // Use a distinct name like "-local"
       "command": "uv",
       "args": [
         "run",
         "--directory",
         "/absolute/path/to/your/cloned/es-documentation-manager-mcp", // <-- IMPORTANT: Update this path
         "python",
-        "esdocmanagermcp/server.py"
+        "es_knowledge_base_mcp/server.py"
       ],
       "cwd": "/absolute/path/to/your/cloned/es-documentation-manager-mcp", // <-- IMPORTANT: Update this path
       "env": {
