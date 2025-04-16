@@ -117,6 +117,16 @@ async def main():
 
         await elasticsearch_client.close()
 
+def run():
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.info("Keyboard interrupt received, exiting...")
+    except Exception as e:
+        logger.error(f"An error occurred: {e}")
+    finally:
+        logger.info("Server shutdown complete.")
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    logger.error("This script is not meant to be run directly. Please use the MCP CLI to start the server.")
+    run()

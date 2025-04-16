@@ -25,7 +25,7 @@ requires = ["poetry-core>=2.0.0,<3.0.0","pip"]
 build-backend = "poetry.core.masonry.api" 
 
 [project.scripts]
-es-knowledge-base-mcp = "es_knowledge_base_mcp.server:main"
+es-knowledge-base-mcp = "es_knowledge_base_mcp.server:run"
 
 [project.optional-dependencies]
 dev = [
