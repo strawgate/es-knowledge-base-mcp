@@ -166,7 +166,7 @@ wheels = [
 ]
 
 [[package]]
-name = "es_knowledge_base_mcp"
+name = "es-knowledge-base-mcp"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
@@ -193,7 +193,7 @@ requires-dist = [
     { name = "aiohttp", specifier = ">=3.11.14" },
     { name = "anyio", specifier = ">=4.9.0,<5.0.0" },
     { name = "elasticsearch", specifier = ">=8.17.2,<9.0.0" },
-    { name = "fastmcp", specifier = ">=2.0.0" },
+    { name = "fastmcp", specifier = ">=2.1.2" },
     { name = "pydantic", specifier = ">=2.0.0,<3.0.0" },
     { name = "pydantic-settings", specifier = ">=2.3.4,<3.0.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3.5,<9.0.0" },
@@ -219,7 +219,7 @@ wheels = [
 
 [[package]]
 name = "fastmcp"
-version = "2.0.0"
+version = "2.1.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "dotenv" },
@@ -230,9 +230,9 @@ dependencies = [
     { name = "typer" },
     { name = "websockets" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/1d/a0/8890b194d5cf5a3b5b17a14b9083a328f356ede2d302030f988cd58714ca/fastmcp-2.0.0.tar.gz", hash = "sha256:fa10e3db4c177d10f452f98d546a0ab001cad698bc8e9d57824706c190b06b55", size = 839706 }
+sdist = { url = "https://files.pythonhosted.org/packages/ae/7c/bc08df6967b58f1ebf403618c69aa88425757a28190877943c4720bb1a7d/fastmcp-2.1.2.tar.gz", hash = "sha256:0098eb57ce9862582c30c619da4c5d8f52757e433baa18407743c2e9c48f32aa", size = 911145 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/91/11/2eab423e80d827a13fd7c7c96d1dd1021a0da5c9e2376d84338e34eebd06/fastmcp-2.0.0-py3-none-any.whl", hash = "sha256:d5c4111233a6a29fa92ed5acdbfe4feae922191a1d1c1543f0a85efeef31fbb9", size = 69073 },
+    { url = "https://files.pythonhosted.org/packages/67/35/f7a312e5b2a5637b4a62777cf72f3c29a3a149f2ecdb7fbba916b74c22cd/fastmcp-2.1.2-py3-none-any.whl", hash = "sha256:24584059ec5b6dabacb273aca4ccb852bd184ca87c495fdce50376a6eb28faaf", size = 74289 },
 ]
 
 [[package]]
