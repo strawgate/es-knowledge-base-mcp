@@ -116,28 +116,6 @@ class ElasticsearchSettings(BaseElasticsearchSettings):
 
     authentication: ElasticsearchAuthenticationSettings = Field(default=ElasticsearchAuthenticationSettings())
 
-    @model_validator(mode="after")
-    def validate_host(self) -> Self:
-        return self
-
-    @property
-    def host_port(self):
-        """Get the Elasticsearch port."""
-        parsed_url = urlparse(self.host)
-        return parsed_url.port if parsed_url.port else 443 if parsed_url.scheme == "https" else 80
-
-    @property
-    def host_scheme(self):
-        """Get the Elasticsearch scheme."""
-        parsed_url = urlparse(self.host)
-        return parsed_url.scheme
-
-    @property
-    def host_name(self):
-        """Get the hostname for the ."""
-        parsed_url = urlparse(self.host)
-        return parsed_url.hostname
-
     @property
     def index_pattern(self) -> str:
         """Generate the Elasticsearch index name using the prefix and a wildcard."""
@@ -175,7 +153,6 @@ class ElasticsearchSettings(BaseElasticsearchSettings):
     def to_crawler_settings(self) -> Dict[str, Any]:
         settings = {
             "host": self.host,
-            "port": self.host_port,
             "request_timeout": self.request_timeout,
             "bulk_api.max_items": self.bulk_api_max_items,
             "bulk_api.max_size_bytes": self.bulk_api_max_size_bytes,
