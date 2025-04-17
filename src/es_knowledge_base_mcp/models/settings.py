@@ -154,8 +154,10 @@ class ElasticsearchSettings(BaseElasticsearchSettings):
         settings = {
             "host": self.host,
             "request_timeout": self.request_timeout,
-            "bulk_api.max_items": self.bulk_api_max_items,
-            "bulk_api.max_size_bytes": self.bulk_api_max_size_bytes,
+            "bulk_api" :{
+                "max_items": self.bulk_api_max_items,
+                "max_size_bytes": self.bulk_api_max_size_bytes,
+            },
             **self._get_auth_dict(),
         }
 
