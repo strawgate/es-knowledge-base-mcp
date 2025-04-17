@@ -1,4 +1,5 @@
 from __future__ import annotations
+from uuid import uuid4
 import yaml
 import urllib.parse
 from typing import TYPE_CHECKING, List, Dict, Any
@@ -124,8 +125,8 @@ class Crawler:
         path = parsed.path
         filter_pattern = path
 
-        # if url is a file, we need to crawl everything that matches the url up to the last `/` character
-        if "." in path.split("/")[-1]:
+        # if end of the url is a file, we need to crawl everything that matches the url up to the last `/` character
+        if not path.endswith("/") and "." in path.split("/")[-1]:
             filter_pattern = path[: path.rfind("/") + 1] or "/"
 
         return {
@@ -175,9 +176,11 @@ class Crawler:
 
         config_file_to_inject = await self._prepare_crawl_config_file(domain, seed_url, filter_pattern, elasticsearch_index_name)
 
+        random_id = uuid4().hex[:8]
         try:
             container_id = await docker_utils.start_container_with_files(
                 docker_client=self.docker_client,
+                container_name=f"mcp-crawler-{elasticsearch_index_name}-{random_id}",
                 image_name=self.settings.docker_image,
                 command=["ruby", "bin/crawler", "crawl", config_file_to_inject.filename],
                 files_to_inject=[config_file_to_inject],

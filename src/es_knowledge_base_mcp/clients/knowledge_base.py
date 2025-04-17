@@ -12,6 +12,7 @@ from elasticsearch import (
 
 
 from fastmcp.utilities.logging import get_logger
+from es_knowledge_base_mcp.clients.elasticsearch import url_to_index_name
 from es_knowledge_base_mcp.models.constants import CRAWLER_INDEX_MAPPING
 from es_knowledge_base_mcp.models.errors import ElasticsearchError, ElasticsearchNotFoundError, ElasticsearchSearchError
 from es_knowledge_base_mcp.models.settings import KnowledgeBaseServerSettings
@@ -235,8 +236,14 @@ class KnowledgeBaseServer:
 
     async def create_kb(self, knowledge_base_proto: KnowledgeBaseProto):
         """Create a new knowledge base entry."""
+        
+        id_prefix = self.index_prefix
+        id = url_to_index_name(knowledge_base_proto.source)
+        id_suffix = str(uuid.uuid4())[:8]
+        
+        id = f"{id_prefix}-{id}-{id_suffix}"
 
-        return await self.create_kb_with_id(id=self.index_prefix + str(uuid.uuid4())[:8], knowledge_base_proto=knowledge_base_proto)
+        return await self.create_kb_with_id(id=id, knowledge_base_proto=knowledge_base_proto)
 
     async def update_kb(self, id: str, knowledge_base_proto: KnowledgeBaseProto):
         """Update a knowledge base entry."""

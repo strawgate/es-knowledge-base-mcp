@@ -71,5 +71,19 @@ async def create_index(elasticsearch_client, index_name: str, meta: dict[str, An
 
     logger.debug(f"Index '{index_name}' created successfully.")
 
+def url_to_index_name(url) -> str:
+        # Convert URL to a valid index name
+        # We can have 256 characters of lowercase alphanumeric characters, underscores, hyphens and periods
+
+        # We'll want to keep only the first 50 characters of the URL
+        # we want www.python.org/docs/index.html to turn into www_python_org.docs.index_html
+        # so we replace dots with underscores
+        # slashes with dots
+        # strip all other characters
+        id = url.replace("https://", "").replace("http://", "").replace(".", "_").replace("/", ".")
+        id = "".join(c for c in id if c.isalnum() or c in ["_", "-"])
+
+        return id[:50]
+
 
 # endregion Index Handling
