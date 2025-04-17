@@ -5,7 +5,7 @@
 This MCP server provides tools to your AI Assistant allowing it to crawl and search documentation autonomously. It utilizes the `FastMCP` framework for simplified development and interacts with:
 
 1.  A Docker container running the `ghcr.io/strawgate/es-crawler:main` image (or as configured via `CRAWLER_IMAGE` env var) to perform the actual web crawling.
-2.  An Elasticsearch cluster for index listing and ELSER-powered searching. Indices created will use the prefix `docsmcp-` by default (configurable via `ES_INDEX_PREFIX` env var). Using an [Elasticsearch Serverless Search project](https://www.elastic.co/guide/en/serverless/current/what-is-elasticsearch-serverless.html) is a lightning fast way to get started.
+2.  An Elasticsearch cluster for index listing and ELSER-powered searching. Indices created will use the prefix `kbmcp-` by default (configurable via `ES_INDEX_PREFIX` env var). Using an [Elasticsearch Serverless Search project](https://www.elastic.co/guide/en/serverless/current/what-is-elasticsearch-serverless.html) is a lightning fast way to get started.
 
 ## Demo
 
