@@ -10,12 +10,8 @@ logger = get_logger("knowledge-base-mcp.elasticsearch")
 
 
 @asynccontextmanager
-async def elasticsearch_manager(elasticsearch_settings: ElasticsearchSettings) -> AsyncIterator[AsyncElasticsearch]:
+async def elasticsearch_manager(elasticsearch_client: AsyncElasticsearch) -> AsyncIterator[AsyncElasticsearch]:
     """Context manager for Elasticsearch client."""
-
-    es_client_args = elasticsearch_settings.to_client_settings()
-
-    elasticsearch_client = AsyncElasticsearch(**es_client_args)
 
     try:
         await elasticsearch_client.info()
@@ -29,7 +25,6 @@ async def elasticsearch_manager(elasticsearch_settings: ElasticsearchSettings) -
         raise InvalidConfigurationError("Unknown error connecting to Elasticsearch.") from e
     finally:
         await elasticsearch_client.close()
-
     try:
         async with handle_errors("Elasticsearch client initialization"):
             yield elasticsearch_client
@@ -60,17 +55,6 @@ async def handle_errors(operation: str) -> AsyncIterator[None]:
 # region Index Handling
 
 
-async def create_index(elasticsearch_client, index_name: str, meta: dict[str, Any]) -> None:
-    """Creates an index in Elasticsearch."""
-    mappings = {"_meta": meta}
-
-    logger.debug(f"Creating index '{index_name}' with mappings: {mappings}")
-
-    async with handle_errors("create index"):
-        await elasticsearch_client.indices.create(index=index_name, mappings=mappings)
-
-    logger.debug(f"Index '{index_name}' created successfully.")
-
 def url_to_index_name(url) -> str:
         # Convert URL to a valid index name
         # We can have 256 characters of lowercase alphanumeric characters, underscores, hyphens and periods
@@ -80,10 +64,11 @@ def url_to_index_name(url) -> str:
         # so we replace dots with underscores
         # slashes with dots
         # strip all other characters
-        id = url.replace("https://", "").replace("http://", "").replace(".", "_").replace("/", ".")
-        id = "".join(c for c in id if c.isalnum() or c in ["_", "-"])
+        id = url.replace("https://", "").replace("http://","").replace(".", "_").replace("/", ".").replace("-", "_")
+        id = "".join(c for c in id if c.isalnum() or c in ["_", "-", "."])
+        # trim off any leading or trailing dashes, underscores, or periods
 
-        return id[:50]
+        return id[:50].strip("-_.")
 
 
 # endregion Index Handling

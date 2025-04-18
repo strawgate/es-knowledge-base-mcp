@@ -51,6 +51,17 @@ class KnowledgeBase(KnowledgeBaseProto):
     id: str = Field(default="raw index name of the knowledge base")
     doc_count: int = Field(default=0, description="Number of documents in the knowledge base")
 
+    def __getstate__(self):
+        """Only include the underlying dictionary in the state for serialization."""
+
+        # return in a specific order
+        return {
+            "title": self.name,
+            "description": self.description,
+            "source": self.source,
+            "id": self.id,
+            "doc_count": self.doc_count,
+        }
 
 class SearchResult(BaseModel):
     knowledge_base_name: str | None = Field(default=None, description="The name of the knowledge base.")
@@ -59,6 +70,10 @@ class SearchResult(BaseModel):
     highlights: List[str] | None = Field(default=None, description="The highlights of the search result.")
     body: str | None = Field(default=None, description="The body of the search result.")
 
+    def __getstate__(self):
+        """Only include the underlying dictionary in the state for serialization."""
+        return self.__dict__
+    
     def to_dict(self) -> dict[str, Any]:
         """Converts the object to a dictionary."""
 
@@ -69,7 +84,7 @@ class SearchResult(BaseModel):
         """
         Extracts specified keys from the source dictionary.
         """
-        index = hit.get("_index", "")
+        #index = hit.get("_index", "")
         source = hit.get("_source", {})
 
         highlights = hit.get("highlight", {})
@@ -270,36 +285,36 @@ class KnowledgeBaseServer:
 
     # region KB Search
 
-    async def search_kb_all(self, queries: list[dict[str, Any]], results: int = 5, fragments: int = 5):
-        return await self._search_by_indices(queries, [self.index_pattern], results=results, fragments=fragments)
+    async def search_kb_all(self, questions: list[str], results: int = 5, fragments: int = 5):
+        return await self._search_by_indices(questions, [self.index_pattern], results=results, fragments=fragments)
 
-    async def search_kb(self, knowledge_base: KnowledgeBase, queries: list[dict[str, Any]], results: int = 5, fragments: int = 5):
-        """Search the knowledge base for the queries."""
+    async def search_kb(self, knowledge_base: KnowledgeBase, questions: list[str], results: int = 5, fragments: int = 5):
+        """Search the knowledge base for the questions."""
 
-        return await self._search_by_knowledge_bases(queries, knowledge_base=[knowledge_base], results=results, fragments=fragments)
+        return await self._search_by_knowledge_bases(questions, knowledge_base=[knowledge_base], results=results, fragments=fragments)
 
-    async def search_kbs(self, knowledge_bases: list[KnowledgeBase], queries: list[dict[str, Any]], results: int = 5, fragments: int = 5):
-        """Search the knowledge base for the queries."""
+    async def search_kbs(self, knowledge_bases: list[KnowledgeBase], questions: list[str], results: int = 5, fragments: int = 5):
+        """Search the knowledge base for the questions."""
 
-        return await self._search_by_knowledge_bases(queries, knowledge_base=knowledge_bases, results=results, fragments=fragments)
+        return await self._search_by_knowledge_bases(questions, knowledge_base=knowledge_bases, results=results, fragments=fragments)
 
     async def _search_by_knowledge_bases(
-        self, queries: list[dict[str, Any]], knowledge_base: list[KnowledgeBase], results: int = 5, fragments: int = 5
+        self, questions: list[str], knowledge_base: list[KnowledgeBase], results: int = 5, fragments: int = 5
     ):
-        """Search the knowledge base for the queries."""
+        """Search the knowledge base for the questions."""
 
         knowledge_base_indices = [entry.id for entry in knowledge_base]
 
-        return await self._search_by_indices(queries, knowledge_base_indices, results=results, fragments=fragments)
+        return await self._search_by_indices(questions, knowledge_base_indices, results=results, fragments=fragments)
 
-    async def _search_by_indices(self, queries: list[dict[str, Any]], index: list[str], results: int = 5, fragments: int = 5):
+    async def _search_by_indices(self, questions: list[str], index: list[str], results: int = 5, fragments: int = 5):
         """Search the knowledge base for the query."""
 
         operations = []
 
-        for query in queries:
+        for question in questions:
             operations.append({"index": index})
-            operations.append(query)
+            operations.append(self._question_to_query(question, size=results, fragments=fragments))
 
         msearch_results = await self.elasticsearch_client.msearch(searches=operations)
 
@@ -312,6 +327,14 @@ class KnowledgeBaseServer:
         for msearch_result in msearch_results["responses"]:
 
             search_results = []
+
+            if msearch_result.get("error", None):
+                err_text = f"Elasticsearch returned an error for query: {msearch_result['error']}"
+                raise ElasticsearchSearchError(err_text)
+            
+            if not msearch_result.get("hits", {}).get("hits", None):
+                err_text = f"Elasticsearch returned no hits for query: {msearch_result}"
+                raise ElasticsearchNotFoundError(err_text)
 
             for hit in msearch_result["hits"]["hits"]:
                 
@@ -363,5 +386,20 @@ class KnowledgeBaseServer:
         """Generate the Elasticsearch index name using the prefix and a wildcard."""
         return f"{self._scoped_index_prefix(scope)}.*"
 
+    def _question_to_query(self, question: str, size: int = 5, fragments: int = 5) -> dict[str, Any]:
+            """Convert questions to queries."""
+            return {
+                    "query": {
+                        "bool": {
+                            "should": [
+                                {"match": {"headings": {"query": question, "boost": 1}}},
+                                {"semantic": {"field": "body", "query": question, "boost": 2}},
+                            ]
+                        }
+                    },
+                    "_source": ["title", "url"],
+                    "size": size,
+                    "highlight": {"number_of_fragments": fragments, "fragment_size": 500, "fields": {"body": {}}},
+                }
 
 # endregion Documents

@@ -1,5 +1,6 @@
 """MCP Server for the Manage tool."""
 
+from typing import Callable
 from fastmcp import FastMCP
 
 from es_knowledge_base_mcp.clients.knowledge_base import KnowledgeBaseProto, KnowledgeBaseServer
@@ -17,9 +18,14 @@ class ManageServer:
     """Manage server for managing the Knowledge Base."""
 
     knowledge_base_server: KnowledgeBaseServer
+    
+    response_formatter: Callable
 
-    def __init__(self, knowledge_base_server: KnowledgeBaseServer):
+    def __init__(self, knowledge_base_server: KnowledgeBaseServer, response_formatter: Callable | None = None):
         self.knowledge_base_server = knowledge_base_server
+
+        self.response_formatter = response_formatter or (lambda response: response)
+
 
     def register_with_mcp(self, mcp: FastMCP):
         """Register the tools with the MCP server."""
@@ -33,17 +39,18 @@ class ManageServer:
 
         mcp.add_resource_fn(uri=MANAGE_RESOURCE_PREFIX + "entry", fn=self.knowledge_base_server.get_kb)
 
-    async def get(self):
+
+    async def get(self) -> str:
         """Get all knowledge base entries."""
 
-        return await self.knowledge_base_server.get_kb()
+        return self.response_formatter(await self.knowledge_base_server.get_kb())
 
-    async def get_by_id_or_name(self, id_or_name: str):
+    async def get_by_id_or_name(self, id_or_name: str) -> str:
         """Get a knowledge base entry."""
 
         knowledge_base = await self.knowledge_base_server.get_kb_by_id_or_name(id_or_name=id_or_name)
 
-        return knowledge_base
+        return self.response_formatter(knowledge_base)
 
     async def delete(self, id_or_name: str):
         """Delete a knowledge base entry."""

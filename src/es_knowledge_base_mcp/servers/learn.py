@@ -1,5 +1,6 @@
 """MCP Server for the Learn MCP Server."""
 
+from typing import Callable
 from fastmcp import FastMCP
 from pydantic import BaseModel, Field
 
@@ -30,12 +31,16 @@ class LearnServer:
 
     knowledge_base_server: KnowledgeBaseServer
 
+    response_formatter: Callable
+
     def __init__(
-        self, knowledge_base_server: KnowledgeBaseServer, crawler_settings: CrawlerSettings, elasticsearch_settings: ElasticsearchSettings
+        self, knowledge_base_server: KnowledgeBaseServer, crawler_settings: CrawlerSettings, elasticsearch_settings: ElasticsearchSettings, response_formatter: Callable | None = None
     ):
         self.knowledge_base_server = knowledge_base_server
 
         self.crawler = Crawler(settings=crawler_settings, elasticsearch_settings=elasticsearch_settings)
+
+        self.response_formatter = response_formatter or (lambda response: response)
 
     async def async_init(self):
         """Initialize the learn server."""
@@ -72,18 +77,18 @@ class LearnServer:
             description=knowledge_base_description,
         )
 
-        return await self._from_web_documentation_request(knowledge_base_proto=knowledge_base_proto)
+        return self.response_formatter(await self._from_web_documentation_request(knowledge_base_proto=knowledge_base_proto))
 
     async def from_web_documentation_request(self, knowledge_base_proto: KnowledgeBaseProto):
         """Starts a crawl job based on a seed page."""
 
-        return await self._from_web_documentation_request(knowledge_base_proto=knowledge_base_proto)
+        return self.response_formatter(await self._from_web_documentation_request(knowledge_base_proto=knowledge_base_proto))
 
     async def from_web_documentation_requests(self, knowledge_base_protos: list[KnowledgeBaseProto]):
-        return [
+        return self.response_formatter([
             await self._from_web_documentation_request(knowledge_base_proto=knowledge_base_proto)
             for knowledge_base_proto in knowledge_base_protos
-        ]
+        ])
 
     async def _from_web_documentation_request(self, knowledge_base_proto: KnowledgeBaseProto):
         """Starts a crawl job based on a seed page."""

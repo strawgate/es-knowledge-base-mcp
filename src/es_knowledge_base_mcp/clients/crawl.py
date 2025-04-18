@@ -27,7 +27,10 @@ logger = get_logger("knowledge-base-mcp.crawl")
 class Crawler:
     """Handles the logic for crawling websites using Docker."""
 
+    docker_socket: str | None
+
     docker_client: Docker
+
     settings: CrawlerSettings
 
     # Container Label used to identify containers managed by this component
@@ -47,6 +50,7 @@ class Crawler:
         self.elasticsearch_settings = elasticsearch_settings
 
         self.settings = settings
+        self.docker_socket = settings.docker_socket
 
         logger.debug("Crawler component initialized with settings: %s", self.settings)
 
@@ -55,7 +59,7 @@ class Crawler:
         logger.debug("Initializing Docker client for Crawler...")
 
         try:
-            self.docker_client = Docker()
+            self.docker_client = Docker(url=self.docker_socket)
         except DockerError as e:
             logger.error("Failed to initialize Docker client: %s", e)
             raise CrawlerError(f"Failed to initialize Docker client: {e}") from e

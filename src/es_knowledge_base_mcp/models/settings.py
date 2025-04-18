@@ -64,22 +64,6 @@ class BaseElasticsearchSettings(BaseSettings):
 class ElasticsearchAuthenticationSettings(BaseElasticsearchSettings):
     """Settings for configuring authentication to Elasticsearch."""
 
-    username: Optional[str] = Field(default=None, alias="ES_USERNAME", description="Username for basic authentication.")
-    password: Optional[SecretStr] = Field(default=None, alias="ES_PASSWORD", exclude=True, description="Password for basic authentication.")
-    api_key: Optional[SecretStr] = Field(default=None, alias="ES_API_KEY", exclude=True, description="API key for authentication.")
-
-    # validate that only one of the authentication methods is set
-    @model_validator(mode="after")
-    def validate_authentication(self) -> Self:
-        """Validate that only one authentication method is set."""
-        if self.api_key and (self.username or self.password):
-            raise ValueError("Cannot use both API key and basic authentication.")
-        if self.username and not self.password:
-            raise ValueError("Username requires a password.")
-        if self.password and not self.username:
-            raise ValueError("Password requires a username.")
-        return self
-
 
 class ElasticsearchSettings(BaseElasticsearchSettings):
     """Settings for configuring the connection to Elasticsearch."""
@@ -108,18 +92,32 @@ class ElasticsearchSettings(BaseElasticsearchSettings):
         description="Maximum size in bytes for bulk API operations.",
     )
 
-    authentication: ElasticsearchAuthenticationSettings = Field(default=ElasticsearchAuthenticationSettings())
+    username: Optional[str] = Field(default=None, alias="ES_USERNAME", description="Username for basic authentication.")
+    password: Optional[SecretStr] = Field(default=None, alias="ES_PASSWORD", exclude=True, description="Password for basic authentication.")
+    api_key: Optional[SecretStr] = Field(default=None, alias="ES_API_KEY", exclude=True, description="API key for authentication.")
+
+    # validate that only one of the authentication methods is set
+    @model_validator(mode="after")
+    def validate_authentication(self) -> Self:
+        """Validate that only one authentication method is set."""
+        if self.api_key and (self.username or self.password):
+            raise ValueError("Cannot use both API key and basic authentication.")
+        if self.username and not self.password:
+            raise ValueError("Username requires a password.")
+        if self.password and not self.username:
+            raise ValueError("Password requires a username.")
+        return self
 
     def _get_auth_dict(self) -> Dict[str, Any]:
         """Get the authentication dictionary for Elasticsearch."""
         auth_dict = {}
 
-        if self.authentication.api_key:
-            auth_dict["api_key"] = self.authentication.api_key.get_secret_value()
-        elif self.authentication.username and self.authentication.password:
+        if self.api_key:
+            auth_dict["api_key"] = self.api_key.get_secret_value()
+        elif self.username and self.password:
             auth_dict["basic_auth"] = (
-                self.authentication.username,
-                self.authentication.password.get_secret_value(),
+                self.username,
+                self.password.get_secret_value(),
             )
         else:
             logger.warning("No authentication method specified for Elasticsearch.")
@@ -194,6 +192,12 @@ class CrawlerSettings(BaseSettings):
 
     docker_image: str = Field(alias="crawler_docker_image", default="ghcr.io/strawgate/es-crawler:main")
 
+    docker_socket: str | None = Field(
+        default=None,
+        alias="crawler_docker_socket",
+        description="Docker socket for the crawler.",
+    )
+
 
 # endregion Elasticsearch Settings
 
@@ -207,19 +211,25 @@ class BaseDocumentationManagerSettings(BaseSettings):
 class DocsManagerSettings(BaseDocumentationManagerSettings):
     """Load settings for the Docs Manager."""
 
-    mcps: TransportSettings = Field(default=TransportSettings())
+    mcps: TransportSettings = Field(default_factory=TransportSettings)
 
-    logging: LoggingSettings = Field(default=LoggingSettings())
+    logging: LoggingSettings = Field(default_factory=LoggingSettings)
 
-    elasticsearch: ElasticsearchSettings = Field(default=ElasticsearchSettings())
+    elasticsearch: ElasticsearchSettings = Field(default_factory=ElasticsearchSettings)
 
-    knowledge_base: KnowledgeBaseServerSettings = Field(default=KnowledgeBaseServerSettings())
+    knowledge_base: KnowledgeBaseServerSettings = Field(default_factory=KnowledgeBaseServerSettings)
 
-    learn: LearnServerSettings = Field(default=LearnServerSettings())
+    learn: LearnServerSettings = Field(default_factory=LearnServerSettings)
 
-    memory: MemoryServerSettings = Field(default=MemoryServerSettings())
+    memory: MemoryServerSettings = Field(default_factory=MemoryServerSettings)
 
-    crawler: CrawlerSettings = Field(default=CrawlerSettings())
+    crawler: CrawlerSettings = Field(default_factory=CrawlerSettings)
+
+    output_format: str = Field(
+        default="yaml",
+        alias="MEMORY_OUTPUT_FORMAT",
+        description="Output format for memory retrieval.",
+    )
 
 
 # endregion Main Settings

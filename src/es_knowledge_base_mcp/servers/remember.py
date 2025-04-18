@@ -1,6 +1,6 @@
 """MCP Server for the Learn MCP Server."""
 
-from typing import List
+from typing import Callable, List
 from fastmcp import FastMCP
 from pydantic import BaseModel, Field
 
@@ -32,18 +32,22 @@ class MemoryServer:
 
     memory_knowledge_base_default_id: str
 
+    response_formatter: Callable
+
     # memory_knowledge_base: KnowledgeBase
 
-    def __init__(self, knowledge_base_server: KnowledgeBaseServer, memory_server_settings: MemoryServerSettings):
+    def __init__(self, knowledge_base_server: KnowledgeBaseServer, memory_server_settings: MemoryServerSettings, response_formatter: Callable | None = None):
         self.knowledge_base_server = knowledge_base_server
 
         self.memory_knowledge_base_default_id = memory_server_settings.memory_index_prefix + MEMORY_KNOWLEDGE_BASE_DEFAULT_ID
         self.memory_index_prefix = memory_server_settings.memory_index_prefix
 
+        self.response_formatter = response_formatter or (lambda response: response)
+
     def register_with_mcp(self, mcp: FastMCP):
         """Register the learn server with the MCP."""
-        mcp.add_tool(self.from_thoughts)
-        mcp.add_tool(self.from_thought)
+        mcp.add_tool(self.thoughts)
+        mcp.add_tool(self.thought)
 
     async def async_init(self):
         name = MEMORY_KNOWLEDGE_DEFAULT_NAME
@@ -73,7 +77,7 @@ class MemoryServer:
     async def async_shutdown(self):
         pass
 
-    async def from_thoughts(
+    async def thoughts(
         self,
         thoughts: List[Thought],
     ) -> None:
@@ -83,11 +87,24 @@ class MemoryServer:
             knowledge_base=self.memory_knowledge_base, documents=[thought.model_dump() for thought in thoughts]
         )
 
-    async def from_thought(
+    async def thought(
         self,
         title: str = Field(default="A friendly `title` for the thought."),
         body: str = Field(default="The thought."),
     ) -> None:
         """Send Thoughts to Elasticsearch to Elasticsearch"""
 
-        await self.from_thoughts(thoughts=[Thought(title=title, body=body)])
+        await self.thoughts(thoughts=[Thought(title=title, body=body)])
+
+    async def recall(
+        self,
+        questions: list[str],
+    ) -> str:
+        """Search the memory knowledge base."""
+
+        return self.response_formatter(
+                await self.knowledge_base_server.search_kb(
+                    knowledge_base=self.memory_knowledge_base,
+                    questions=questions,
+                )
+            )
