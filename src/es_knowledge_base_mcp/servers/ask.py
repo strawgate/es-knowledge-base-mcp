@@ -1,6 +1,5 @@
 """MCP Server for the Ask tool."""
 
-from dataclasses import dataclass
 from enum import Enum
 from typing import Callable, List
 from fastmcp import FastMCP
@@ -14,6 +13,7 @@ from fastmcp.utilities.logging import get_logger
 
 logger = get_logger("knowledge-base-mcp.ask")
 
+
 class AskQuestionResponse(BaseModel):
     question: str = Field(description="The question.")
     results: List[SearchResult] = Field(description="The search results.")
@@ -21,7 +21,7 @@ class AskQuestionResponse(BaseModel):
     def __getstate__(self):
         """Only include the underlying dictionary in the state for serialization."""
         return self.__dict__
-    
+
     def to_yaml(self) -> str:
         """Converts the search result to a string."""
 
@@ -100,30 +100,66 @@ class AskServer:
         return queries
 
     async def questions(self, questions: list[str], answer_style: QuestionAnswerStyle = QuestionAnswerStyle.NORMAL) -> list[str]:
-        """Ask questions of the knowledge base."""
+        """
+        Ask questions of the knowledge base. This is the main entry point for asking questions. Ask questions in plain English
+          and the knowledge base will return the most relevant results. You can ask as many questions as you want, as often
+            as you want. The knowledge base will return the most relevant results for each question.
+
+        Args:
+            questions: A list of strings, where each string is a question to ask the knowledge base.
+            answer_style: The desired thoroughness of the answer. Defaults to QuestionAnswerStyle.NORMAL.
+
+        Returns:
+            A list of formatted strings, where each string contains the answer to a question.
+
+        Example:
+            >>> await self.questions(questions=["What is the capital of France?", "What is the highest mountain in the world?"], answer_style=QuestionAnswerStyle.COMPREHENSIVE)
+            [
+                "Question: What is the capital of France?\nResults:\n  - Title: Paris\n    URL: http://example.com/paris\n    Content: Paris is the capital and most populous city of France.",
+                "Question: What is the highest mountain in the world?\nResults:\n  - Title: Mount Everest\n    URL: http://example.com/everest\n    Content: Mount Everest is the Earth's highest mountain above sea level."
+            ]
+        """
 
         question_results = zip(
             questions,
-            await self.knowledge_base_server.search_kb_all(questions=questions, results=answer_style.to_search_size(), fragments=answer_style.to_search_size())
+            await self.knowledge_base_server.search_kb_all(
+                questions=questions, results=answer_style.to_search_size(), fragments=answer_style.to_search_size()
+            ),
         )
 
         return self.response_formatter([AskQuestionResponse(question=question, results=results) for question, results in question_results])
-        #return "\n".join([AskQuestionResponse(question=question, results=results).to_yaml() for question, results in question_results])
+        # return "\n".join([AskQuestionResponse(question=question, results=results).to_yaml() for question, results in question_results])
 
     async def questions_for_kb(
         self, questions: list[str], knowledge_base_name: str, answer_style: QuestionAnswerStyle = QuestionAnswerStyle.NORMAL
-    )  -> str:
-        """Ask questions of the knowledge base."""
+    ) -> str:
+        """
+        Ask questions of a specific knowledge base.
+
+        Args:
+            questions: A list of strings, where each string is a question to ask the knowledge base.
+            knowledge_base_name: The name of the knowledge base to query.
+            answer_style: The desired thoroughness of the answer. Defaults to QuestionAnswerStyle.NORMAL.
+
+        Returns:
+            A formatted string containing the answers to the questions from the specified knowledge base.
+
+        Example:
+            >>> await self.questions_for_kb(questions=["How do I install the library?"], knowledge_base_name="My Python Library Docs", answer_style=QuestionAnswerStyle.NORMAL)
+            "Question: How do I install the library?\nResults:\n  - Title: Installation Guide\n    URL: http://example.com/docs/install\n    Content: To install the library, use pip: `pip install my-library`."
+        """
 
         knowledge_base = await self.knowledge_base_server.get_kb_by_name(name=knowledge_base_name)
 
         question_results = zip(
             questions,
             await self.knowledge_base_server.search_kb(
-                knowledge_base=knowledge_base, questions=questions, results=answer_style.to_search_size(), fragments=answer_style.to_search_size(
+                knowledge_base=knowledge_base,
+                questions=questions,
+                results=answer_style.to_search_size(),
+                fragments=answer_style.to_search_size(),
             ),
-        ))
+        )
 
         return self.response_formatter([AskQuestionResponse(question=question, results=results) for question, results in question_results])
-        #return "\n".join([AskQuestionResponse(question=question, results=results).to_yaml() for question, results in question_results])
-
+        # return "\n".join([AskQuestionResponse(question=question, results=results).to_yaml() for question, results in question_results])

@@ -2,6 +2,7 @@ import pytest
 
 from es_knowledge_base_mcp.clients.elasticsearch import url_to_index_name
 
+
 @pytest.mark.parametrize(
     "url, expected_index_name",
     [
@@ -24,7 +25,7 @@ from es_knowledge_base_mcp.clients.elasticsearch import url_to_index_name
             "this_is_a_very_long_domain_name_that_will_surely_b",
         ),
         ("http://127.0.0.1/", "127_0_0_1"),
-        ("", ""), # Empty input
+        ("", ""),  # Empty input
     ],
 )
 def test_url_to_index_name(url: str, expected_index_name: str):

@@ -2,7 +2,6 @@ import logging
 
 import os
 from typing import Any, Literal, Optional, Dict, Self
-from urllib.parse import urlparse
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field, SecretStr, model_validator
 from es_knowledge_base_mcp.models.constants import BASE_LOGGER_NAME
@@ -141,7 +140,7 @@ class ElasticsearchSettings(BaseElasticsearchSettings):
         settings = {
             "host": self.host,
             "request_timeout": self.request_timeout,
-            "bulk_api" :{
+            "bulk_api": {
                 "max_items": self.bulk_api_max_items,
                 "max_size_bytes": self.bulk_api_max_size_bytes,
             },
@@ -160,7 +159,8 @@ class KnowledgeBaseServerSettings(BaseElasticsearchSettings):
     def base_index_pattern(self) -> str:
         """Generate the Elasticsearch index name using the prefix and a wildcard."""
         return f"{self.base_index_prefix}-*"
-    
+
+
 class LearnServerSettings(BaseElasticsearchSettings):
     """Settings for configuring the learn server."""
 

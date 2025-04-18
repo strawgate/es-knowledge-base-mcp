@@ -1,8 +1,7 @@
-from typing import Any, AsyncIterator
+from typing import AsyncIterator
 from elasticsearch import ApiError, AsyncElasticsearch, AuthenticationException, AuthorizationException, BadRequestError, ConnectionError
 from contextlib import asynccontextmanager
 from es_knowledge_base_mcp.models.errors import ElasticsearchConnectionError, ElasticsearchError, InvalidConfigurationError
-from es_knowledge_base_mcp.models.settings import ElasticsearchSettings
 
 from fastmcp.utilities.logging import get_logger
 
@@ -56,19 +55,19 @@ async def handle_errors(operation: str) -> AsyncIterator[None]:
 
 
 def url_to_index_name(url) -> str:
-        # Convert URL to a valid index name
-        # We can have 256 characters of lowercase alphanumeric characters, underscores, hyphens and periods
+    # Convert URL to a valid index name
+    # We can have 256 characters of lowercase alphanumeric characters, underscores, hyphens and periods
 
-        # We'll want to keep only the first 50 characters of the URL
-        # we want www.python.org/docs/index.html to turn into www_python_org.docs.index_html
-        # so we replace dots with underscores
-        # slashes with dots
-        # strip all other characters
-        id = url.replace("https://", "").replace("http://","").replace(".", "_").replace("/", ".").replace("-", "_")
-        id = "".join(c for c in id if c.isalnum() or c in ["_", "-", "."])
-        # trim off any leading or trailing dashes, underscores, or periods
+    # We'll want to keep only the first 50 characters of the URL
+    # we want www.python.org/docs/index.html to turn into www_python_org.docs.index_html
+    # so we replace dots with underscores
+    # slashes with dots
+    # strip all other characters
+    id = url.replace("https://", "").replace("http://", "").replace(".", "_").replace("/", ".").replace("-", "_")
+    id = "".join(c for c in id if c.isalnum() or c in ["_", "-", "."])
+    # trim off any leading or trailing dashes, underscores, or periods
 
-        return id[:50].strip("-_.")
+    return id[:50].strip("-_.")
 
 
 # endregion Index Handling

@@ -10,7 +10,7 @@ import yaml
 from es_knowledge_base_mcp.clients.elasticsearch import elasticsearch_manager
 from es_knowledge_base_mcp.clients.knowledge_base import KnowledgeBaseServer
 from es_knowledge_base_mcp.models.errors import InvalidConfigurationError
-from es_knowledge_base_mcp.models.settings import DocsManagerSettings, ElasticsearchAuthenticationSettings
+from es_knowledge_base_mcp.models.settings import DocsManagerSettings
 from es_knowledge_base_mcp.servers.ask import AskServer
 from es_knowledge_base_mcp.servers.learn import LearnServer
 from fastmcp.utilities.logging import get_logger
@@ -62,7 +62,8 @@ async def main():
     elasticsearch_client = AsyncElasticsearch(**elasticsearch_client_args)
 
     # monkey patch so our yaml emitter doesnt include class names in output
-    yaml.emitter.Emitter.prepare_tag = lambda self, tag: ''
+    yaml.emitter.Emitter.prepare_tag = lambda self, tag: ""
+
     def response_formatter(response) -> str:
         """Format the response from Elasticsearch."""
         return yaml.dump(response, default_flow_style=False, width=10000, sort_keys=False)
@@ -70,7 +71,7 @@ async def main():
     knowledge_base_server = KnowledgeBaseServer(
         settings=settings.knowledge_base,
         elasticsearch_client=elasticsearch_client,
-        #response_formatter=response_formatter,
+        # response_formatter=response_formatter,
     )
 
     memory_server = MemoryServer(
@@ -129,20 +130,21 @@ async def main():
     except Exception as e:
         logger.warning(f"Failed to initialize Learn server, likely due to Docker not being available. Error: {e}")
         learn_server = None
-    
+
     try:
         await root_mcp.run_async(transport=settings.mcps.mcp_transport)
     finally:
         await knowledge_base_server.async_shutdown()
         await memory_server.async_shutdown()
         await ask_server.async_shutdown()
-        
-        if learn_server: # Conditionally shutdown learn_server
+
+        if learn_server:  # Conditionally shutdown learn_server
             await learn_server.async_shutdown()
 
         await manage_server.async_shutdown()
 
         await elasticsearch_client.close()
+
 
 def run():
     try:
@@ -153,6 +155,7 @@ def run():
         logger.error(f"An error occurred: {e}")
     finally:
         logger.info("Server shutdown complete.")
+
 
 if __name__ == "__main__":
     logger.error("This script is not meant to be run directly. Please use the MCP CLI to start the server.")

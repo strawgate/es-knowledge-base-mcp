@@ -63,6 +63,7 @@ class KnowledgeBase(KnowledgeBaseProto):
             "doc_count": self.doc_count,
         }
 
+
 class SearchResult(BaseModel):
     knowledge_base_name: str | None = Field(default=None, description="The name of the knowledge base.")
     title: str = Field(default="A friendly `title` for knowledge base document.")
@@ -73,7 +74,7 @@ class SearchResult(BaseModel):
     def __getstate__(self):
         """Only include the underlying dictionary in the state for serialization."""
         return self.__dict__
-    
+
     def to_dict(self) -> dict[str, Any]:
         """Converts the object to a dictionary."""
 
@@ -84,7 +85,7 @@ class SearchResult(BaseModel):
         """
         Extracts specified keys from the source dictionary.
         """
-        #index = hit.get("_index", "")
+        # index = hit.get("_index", "")
         source = hit.get("_source", {})
 
         highlights = hit.get("highlight", {})
@@ -144,7 +145,6 @@ class KnowledgeBaseServer:
             raise ElasticsearchError(err_text) from e
 
         logger.debug(f"Completed {operation}.")
-
 
     # region KB Management
 
@@ -225,13 +225,12 @@ class KnowledgeBaseServer:
         kb_by_id = await self.try_get_kb_by_id(id_or_name)
         if kb_by_id is not None:
             return kb_by_id
-        
+
         kb_by_name = await self.try_get_kb_by_name(id_or_name)
         if kb_by_name is not None:
             return kb_by_name
-    
-        raise ElasticsearchNotFoundError(f"Knowledge base '{id_or_name}' not found.")
 
+        raise ElasticsearchNotFoundError(f"Knowledge base '{id_or_name}' not found.")
 
     async def create_kb_with_id(self, id: str, knowledge_base_proto: KnowledgeBaseProto):
         """Create a new knowledge base entry."""
@@ -255,18 +254,18 @@ class KnowledgeBaseServer:
         id_prefix = self._scoped_index_prefix(scope)
         id = url_to_index_name(knowledge_base_proto.source)
         id_suffix = str(uuid.uuid4())[:8]
-        
+
         id = f"{id_prefix}-{id}-{id_suffix}"
 
         return await self.create_kb_with_id(id=id, knowledge_base_proto=knowledge_base_proto)
 
     async def create_kb(self, knowledge_base_proto: KnowledgeBaseProto):
         """Create a new knowledge base entry."""
-        
+
         id_prefix = self.index_prefix
         id = url_to_index_name(knowledge_base_proto.source)
         id_suffix = str(uuid.uuid4())[:8]
-        
+
         id = f"{id_prefix}-{id}-{id_suffix}"
 
         return await self.create_kb_with_id(id=id, knowledge_base_proto=knowledge_base_proto)
@@ -325,29 +324,28 @@ class KnowledgeBaseServer:
         multi_search_results: list[list[SearchResult]] = []
 
         for msearch_result in msearch_results["responses"]:
-
             search_results = []
 
             if msearch_result.get("error", None):
                 err_text = f"Elasticsearch returned an error for query: {msearch_result['error']}"
                 raise ElasticsearchSearchError(err_text)
-            
+
             if not msearch_result.get("hits", {}).get("hits", None):
                 err_text = f"Elasticsearch returned no hits for query: {msearch_result}"
                 raise ElasticsearchNotFoundError(err_text)
 
             for hit in msearch_result["hits"]["hits"]:
-                
                 search_result = SearchResult.extract_from_hit(hit)
-                
+
                 if knowledge_base := knowledge_base_map.get(hit["_index"], None):
                     search_result.knowledge_base_name = knowledge_base.name
 
                 search_results.append(search_result)
-                    
+
             multi_search_results.append(search_results)
 
         return multi_search_results
+
     # endregion KB Search
 
     # region KB Documents
@@ -364,7 +362,6 @@ class KnowledgeBaseServer:
         async with self.error_handler("creating documents"):
             await self.elasticsearch_client.bulk(index=knowledge_base.id, operations=operations)
 
-
     async def update_kb_document(self, knowledge_base: KnowledgeBase, id: str, document: dict):
         """Update a document into a knowledge base."""
 
@@ -377,7 +374,6 @@ class KnowledgeBaseServer:
         async with self.error_handler("deleting document"):
             await self.elasticsearch_client.delete(index=knowledge_base.id, id=id)
 
-
     def _scoped_index_prefix(self, scope: str) -> str:
         """Generate the Elasticsearch index name using the prefix and a wildcard."""
         return f"{self.index_prefix}-{scope}"
@@ -387,19 +383,20 @@ class KnowledgeBaseServer:
         return f"{self._scoped_index_prefix(scope)}.*"
 
     def _question_to_query(self, question: str, size: int = 5, fragments: int = 5) -> dict[str, Any]:
-            """Convert questions to queries."""
-            return {
-                    "query": {
-                        "bool": {
-                            "should": [
-                                {"match": {"headings": {"query": question, "boost": 1}}},
-                                {"semantic": {"field": "body", "query": question, "boost": 2}},
-                            ]
-                        }
-                    },
-                    "_source": ["title", "url"],
-                    "size": size,
-                    "highlight": {"number_of_fragments": fragments, "fragment_size": 500, "fields": {"body": {}}},
+        """Convert questions to queries."""
+        return {
+            "query": {
+                "bool": {
+                    "should": [
+                        {"match": {"headings": {"query": question, "boost": 1}}},
+                        {"semantic": {"field": "body", "query": question, "boost": 2}},
+                    ]
                 }
+            },
+            "_source": ["title", "url"],
+            "size": size,
+            "highlight": {"number_of_fragments": fragments, "fragment_size": 500, "fields": {"body": {}}},
+        }
+
 
 # endregion Documents
