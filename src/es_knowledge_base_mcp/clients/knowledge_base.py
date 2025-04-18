@@ -234,6 +234,17 @@ class KnowledgeBaseServer:
             source=knowledge_base_proto.source,
         )
 
+    async def create_kb_with_scope(self, scope: str, knowledge_base_proto: KnowledgeBaseProto):
+        """Create a new knowledge base entry with the specified scope."""
+
+        id_prefix = self._scoped_index_prefix(scope)
+        id = url_to_index_name(knowledge_base_proto.source)
+        id_suffix = str(uuid.uuid4())[:8]
+        
+        id = f"{id_prefix}-{id}-{id_suffix}"
+
+        return await self.create_kb_with_id(id=id, knowledge_base_proto=knowledge_base_proto)
+
     async def create_kb(self, knowledge_base_proto: KnowledgeBaseProto):
         """Create a new knowledge base entry."""
         
@@ -342,6 +353,15 @@ class KnowledgeBaseServer:
 
         async with self.error_handler("deleting document"):
             await self.elasticsearch_client.delete(index=knowledge_base.id, id=id)
+
+
+    def _scoped_index_prefix(self, scope: str) -> str:
+        """Generate the Elasticsearch index name using the prefix and a wildcard."""
+        return f"{self.index_prefix}-{scope}"
+
+    def _scoped_index_pattern(self, scope: str) -> str:
+        """Generate the Elasticsearch index name using the prefix and a wildcard."""
+        return f"{self._scoped_index_prefix(scope)}.*"
 
 
 # endregion Documents

@@ -96,12 +96,6 @@ class ElasticsearchSettings(BaseElasticsearchSettings):
         description="Request timeout for Elasticsearch operations in seconds.",
     )
 
-    index_prefix: str = Field(
-        default="kbmcp-docs.*",
-        alias="ES_INDEX_PREFIX",
-        description="Prefix for the Elasticsearch indices used to store documentation.",
-    )
-
     bulk_api_max_items: int = Field(
         default=200,
         alias="ES_BULK_API_MAX_ITEMS",
@@ -115,11 +109,6 @@ class ElasticsearchSettings(BaseElasticsearchSettings):
     )
 
     authentication: ElasticsearchAuthenticationSettings = Field(default=ElasticsearchAuthenticationSettings())
-
-    @property
-    def index_pattern(self) -> str:
-        """Generate the Elasticsearch index name using the prefix and a wildcard."""
-        return f"{self.index_prefix}-*"
 
     def _get_auth_dict(self) -> Dict[str, Any]:
         """Get the authentication dictionary for Elasticsearch."""
@@ -166,27 +155,16 @@ class ElasticsearchSettings(BaseElasticsearchSettings):
 
 class KnowledgeBaseServerSettings(BaseElasticsearchSettings):
     base_index_prefix: str = Field(
-        default="kbmcp-",
+        default="kbmcp",
     )
 
     @property
     def base_index_pattern(self) -> str:
         """Generate the Elasticsearch index name using the prefix and a wildcard."""
-        return f"{self.base_index_prefix}*"
-
-
+        return f"{self.base_index_prefix}-*"
+    
 class LearnServerSettings(BaseElasticsearchSettings):
     """Settings for configuring the learn server."""
-
-    learn_index_prefix: str = Field(
-        default="kbmcp-docs.",
-        alias="KB_DOCS_INDEX_PREFIX",
-        description="Elasticsearch index for storing learn. Added to the base index prefix.",
-    )
-
-    @property
-    def learn_index_pattern(self) -> str:
-        return f"{self.learn_index_prefix}*"
 
 
 class MemoryServerSettings(BaseElasticsearchSettings):

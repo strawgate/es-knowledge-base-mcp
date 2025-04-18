@@ -88,7 +88,7 @@ class LearnServer:
     async def _from_web_documentation_request(self, knowledge_base_proto: KnowledgeBaseProto):
         """Starts a crawl job based on a seed page."""
 
-        new_knowledge_base = await self.knowledge_base_server.create_kb(knowledge_base_proto=knowledge_base_proto)
+        new_knowledge_base = await self.knowledge_base_server.create_kb_with_scope(scope="docs", knowledge_base_proto=knowledge_base_proto)
 
         url = new_knowledge_base.source
 
