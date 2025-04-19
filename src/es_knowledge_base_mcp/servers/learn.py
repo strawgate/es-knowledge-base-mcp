@@ -163,7 +163,9 @@ class LearnServer:
         self, knowledge_base_protos: list[KnowledgeBaseProto]
     ) -> list[tuple[KnowledgeBaseProto, str]]:
         """
-        Starts multiple crawl jobs based on a list of KnowledgeBaseProto objects.
+        Starts multiple crawl jobs based on a list of KnowledgeBaseProto objects. This is the main entry point for starting crawl jobs from web documentation requests.
+          Use this to create or update knowledge bases based on multiple seed pages. This allows you to make the user experience more efficient by allowing them to
+            start multiple crawl jobs at once.
 
         Args:
             knowledge_base_protos: A list of KnowledgeBaseProto objects, each containing the name, source URL, and description for a knowledge base.

@@ -67,7 +67,7 @@ def url_to_index_name(url) -> str:
     id = "".join(c for c in id if c.isalnum() or c in ["_", "-", "."])
     # trim off any leading or trailing dashes, underscores, or periods
 
-    return id[:50].strip("-_.")
+    return id[:50].strip("-_.").lower()
 
 
 # endregion Index Handling

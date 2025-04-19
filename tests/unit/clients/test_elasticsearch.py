@@ -26,6 +26,7 @@ from es_knowledge_base_mcp.clients.elasticsearch import url_to_index_name
         ),
         ("http://127.0.0.1/", "127_0_0_1"),
         ("", ""),  # Empty input
+        ("https://Example.com/Path", "example_com.path"),
     ],
 )
 def test_url_to_index_name(url: str, expected_index_name: str):
