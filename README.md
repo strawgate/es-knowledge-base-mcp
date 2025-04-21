@@ -7,7 +7,9 @@ This MCP server empowers your AI Assistant to ASK, LEARN, and REMEMBER:
 *   **LEARN**: Obtain and index entire documentation stores (e.x. every word of every page of https://docs.pytest.org/en/stable/contents.html) from the Web, git repositories, or the local filesystem.
 *   **REMEMBER**: Store working information, user preferences, and rules as "memories" for future reference.
 
-This MCP Server is powered by [Elasticsearch Serverless Search (Start a free trial)](https://www.elastic.co/guide/en/serverless/current/what-is-elasticsearch-serverless.html) for inference, and vector search, and [Elastic Crawler](https://github.com/elastic/crawler) for crawling, parsing, and indexing. 
+Internally, the server uses a `KnowledgeBaseClient` protocol to abstract interactions with the knowledge base backend, allowing for potential future flexibility. The current implementation uses Elasticsearch.
+
+This MCP Server is powered by [Elasticsearch Serverless Search (Start a free trial)](https://www.elastic.co/guide/en/serverless/current/what-is-elasticsearch-serverless.html) for inference, and vector search, and [Elastic Crawler](https://github.com/elastic/crawler) for crawling, parsing, and indexing.
 
 ## Benefits
 

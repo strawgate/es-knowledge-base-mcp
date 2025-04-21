@@ -8,7 +8,6 @@ from aiodocker.exceptions import DockerError
 from dataclasses import dataclass
 from typing import AsyncIterator, List, Dict, Any, Optional
 from es_knowledge_base_mcp.models.constants import BASE_LOGGER_NAME
-from es_knowledge_base_mcp.models.errors import DockerImageError
 
 logger = logging.getLogger(BASE_LOGGER_NAME).getChild("utils").getChild("docker")
 
@@ -54,45 +53,6 @@ async def handle_errors(operation: str) -> AsyncIterator[None]:
     logger.debug(f"Completed {operation}.")
 
 
-# region Images
-
-
-async def has_image(docker_client: Docker, image_name: str):
-    """Checks to see if a Docker image exists locally."""
-
-    async with handle_errors("image inspect"):
-        logger.debug(f"Checking if image '{image_name}' exists locally...")
-        try:
-            await docker_client.images.inspect(image_name)
-
-            logger.debug(f"Image '{image_name}' exists locally.")
-
-            return True
-        except DockerError as e:
-            if e.status == 404:
-                logger.info(f"Image '{image_name}' does not exist locally.")
-                return False
-            else:
-                logger.error(f"Error inspecting image '{image_name}': {e}")
-                raise DockerImageError(f"Error inspecting image '{image_name}': {e}")
-
-
-async def pull_image(docker_client: Docker, image_name: str) -> bool:
-    """Pulls a Docker image if it's not present locally."""
-
-    if await has_image(docker_client, image_name):
-        return True
-
-    logger.info(f"Pulling image '{image_name}'...")
-
-    async with handle_errors("image pull"):
-        await docker_client.images.pull(image_name)
-        logger.info(f"Image '{image_name}' pulled successfully.")
-        return True
-
-
-# endregion Images
-
 # region Start Container
 
 
@@ -136,6 +96,7 @@ async def start_container_with_files(
         "Cmd": command,
         "Labels": labels or {},
         "HostConfig": {"AutoRemove": False},
+        "MemoryReservation": 512 * 1024 * 1024,  # 512 MB
     }
 
     logger.debug(f"Preparing container '{container_name or 'unnamed'}' for image '{image_name}' with labels {labels}")

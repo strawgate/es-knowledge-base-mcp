@@ -30,7 +30,7 @@ class LoggingSettings(BaseSettings):
 
     model_config = SettingsConfigDict()
 
-    log_level: str = Field(default="INFO", alias="MCP_LOG_LEVEL", description="Logging level.")
+    log_level: str = Field(default="INFO", alias="mcp_log_level", description="Logging level.")
 
     # include the PID in the log format
     log_format: str = Field(
@@ -69,31 +69,31 @@ class ElasticsearchSettings(BaseElasticsearchSettings):
 
     host: str = Field(
         default="https://localhost:9200",
-        alias="ES_HOST",
+        alias="es_host",
         description="Elasticsearch host URL in the form `https://<host>:<port>`.",
     )
 
     request_timeout: int = Field(
         default=600,
-        alias="ES_REQUEST_TIMEOUT",
+        alias="es_request_timeout",
         description="Request timeout for Elasticsearch operations in seconds.",
     )
 
     bulk_api_max_items: int = Field(
         default=200,
-        alias="ES_BULK_API_MAX_ITEMS",
+        alias="es_bulk_api_max_items",
         description="Maximum number of items for bulk API operations.",
     )
 
     bulk_api_max_size_bytes: int = Field(
         default=10485760,
-        alias="ES_BULK_API_MAX_SIZE_BYTES",
+        alias="es_bulk_api_max_size_bytes",
         description="Maximum size in bytes for bulk API operations.",
     )
 
-    username: Optional[str] = Field(default=None, alias="ES_USERNAME", description="Username for basic authentication.")
-    password: Optional[SecretStr] = Field(default=None, alias="ES_PASSWORD", exclude=True, description="Password for basic authentication.")
-    api_key: Optional[SecretStr] = Field(default=None, alias="ES_API_KEY", exclude=True, description="API key for authentication.")
+    username: Optional[str] = Field(default=None, alias="es_username", description="Username for basic authentication.")
+    password: Optional[SecretStr] = Field(default=None, alias="es_password", exclude=True, description="Password for basic authentication.")
+    api_key: Optional[SecretStr] = Field(default=None, alias="es_api_key", exclude=True, description="API key for authentication.")
 
     # validate that only one of the authentication methods is set
     @model_validator(mode="after")
@@ -170,8 +170,14 @@ class MemoryServerSettings(BaseElasticsearchSettings):
 
     memory_index_prefix: str = Field(
         default="kbmcp-memories.",
-        alias="MEMORY_INDEX_PREFIX",
+        alias="memory_index_prefix",
         description="Elasticsearch index for storing memories. Added to the base index prefix.",
+    )
+
+    project_name: str | None = Field(
+        default=None,
+        alias="memory_project_name",
+        description="Project name for the memory server.",
     )
 
     @property
@@ -227,8 +233,8 @@ class DocsManagerSettings(BaseDocumentationManagerSettings):
 
     output_format: str = Field(
         default="yaml",
-        alias="MEMORY_OUTPUT_FORMAT",
-        description="Output format for memory retrieval.",
+        alias="output_format",
+        description="Output format for calls.",
     )
 
 

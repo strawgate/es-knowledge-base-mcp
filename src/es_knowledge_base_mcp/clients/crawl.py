@@ -1,4 +1,5 @@
 from __future__ import annotations
+from contextlib import asynccontextmanager
 from uuid import uuid4
 import yaml
 import urllib.parse
@@ -9,10 +10,17 @@ from aiodocker.exceptions import DockerError
 
 from es_knowledge_base_mcp.clients import docker as docker_utils
 from es_knowledge_base_mcp.clients.docker import InjectFile
-from es_knowledge_base_mcp.models.errors import CrawlerError
-
+from es_knowledge_base_mcp.errors.crawler import (
+    CrawlerDockerError,
+    CrawlerError,
+    CrawlerValidationHTTPError,
+    CrawlerValidationTooManyURLsError,
+    CrawlerValidationNoIndexNofollowError,  # Import the new error
+)
+from requests import HTTPError
 
 from fastmcp.utilities.logging import get_logger
+from es_knowledge_base_mcp.clients.web import extract_urls_from_webpage  # Add this import
 
 from es_knowledge_base_mcp.models.settings import CrawlerSettings
 
@@ -38,7 +46,7 @@ class Crawler:
     MANAGED_BY_VALUE = "mcp-crawler"
 
     DOMAIN_LABEL = "crawl-domain"
-    CONFIG_FILENAME = "crawl.yml"
+    CRAWL_CONFIG_PATH = "/config/crawl.yml"
 
     def __init__(
         self,
@@ -74,12 +82,28 @@ class Crawler:
             logger.error("Failed to close Docker client: %s", e)
             raise CrawlerError(f"Failed to close Docker client: {e}") from e
 
+    @asynccontextmanager
+    async def handle_errors(self, operation: str = "Docker operation"):
+        """Context manager to handle errors during Docker operations."""
+        try:
+            yield
+        except DockerError as e:
+            message = f"Docker {operation} failed: {e.message}"
+            logger.error(message)
+            raise CrawlerDockerError(message) from e
+        except Exception as e:
+            message = f"Unexpected error during {operation}: {e}"
+            logger.error(message)
+            raise CrawlerError(message) from e
+
     # region Prepare Config
+    @classmethod
     async def _prepare_crawl_config_file(
-        self, domain: str, seed_url: str, filter_pattern: str, elasticsearch_index_name: str
+        cls, domain: str, seed_url: str, filter_pattern: str, elasticsearch_index_name: str, crawler_es_settings: dict[str, Any]
     ) -> InjectFile:
         """
-        Generates the crawler configuration content (as YAML) in memory.
+        Generates the crawler configuration content (as YAML) in memory. This configuration is the Crawler configuration
+        which is documented in https://github.com/elastic/crawler/blob/main/docs/CONFIG.md.
 
         Returns:
             InjectFile: An object containing the generated config content and target path within the container.
@@ -96,20 +120,22 @@ class Crawler:
                     ],
                 }
             ],
+            "log_level": "DEBUG",
             "output_sink": "elasticsearch",
             "output_index": elasticsearch_index_name,
             "elasticsearch": {
-                **self.elasticsearch_settings.to_crawler_settings(),
+                **crawler_es_settings,
             },
         }
 
-        config_container_path = "/config/" + self.CONFIG_FILENAME
+        config_container_path = cls.CRAWL_CONFIG_PATH
 
         return InjectFile(filename=config_container_path, content=yaml.dump(config, indent=2))
 
     # endregion Prepare Config
 
-    def derive_crawl_params(self, url: str) -> Dict[str, str]:
+    @classmethod
+    def derive_crawl_params(cls, url: str) -> Dict[str, str]:
         """Derives crawl parameters using a heuristic based on the URL. Intelligently determine
         the right parameters to use based on the URL provided:
         1. If the url has a file extension, we assume it's a file. We then crawl everything that matches the url
@@ -140,13 +166,54 @@ class Crawler:
         }
 
     # endregion Crawl Parameters
+    # region Crawl Validation
+
+    @classmethod
+    async def validate_crawl(cls, url: str, max_child_page_limit: int = 500) -> Dict[str, Any]:
+        """Validates whether it's a good idea to crawl the target URL."""
+        logger.debug(f"Validating url {url} for crawling")
+
+        crawl_parameters = cls.derive_crawl_params(url)
+
+        logger.debug(f"Derived crawl parameters: {crawl_parameters}")
+
+        try:
+            extraction_result = await extract_urls_from_webpage(  # Update call to handle new return
+                url=url, domain_filter=crawl_parameters["domain"], path_filter=crawl_parameters["filter_pattern"]
+            )
+
+        except HTTPError as e:
+            reason = f"Could not validate crawl. Failed to extract URLs from {url}: {e}"
+            logger.error(reason)
+            raise CrawlerValidationHTTPError(message=reason)
+
+        # Add check for noindex and nofollow
+        if extraction_result["page_is_noindex"] and extraction_result["page_is_nofollow"]:
+            reason = f"Validation failed: Seed URL {url} is marked with both 'noindex' and 'nofollow'."
+            logger.error(reason)
+            raise CrawlerValidationNoIndexNofollowError(message=reason)
+
+        # Update URL count logic
+        num_urls = len(extraction_result["urls_to_crawl"])
+        logger.debug(f"Found {num_urls} URLs to crawl (excluding nofollow links).")
+
+        if num_urls > max_child_page_limit:
+            reason = f"Could not validate crawl. Excessive child URLs ({num_urls} > {max_child_page_limit}). Validate that you're crawling a specific enough URL or consider setting max_child_page_limit."
+            logger.error(reason)
+            raise CrawlerValidationTooManyURLsError(message=reason)
+
+        return crawl_parameters
+
+    # endregion Crawl Validation
 
     # region Image Handling
     async def pull_crawler_image(self) -> None:
         """Pulls the configured crawler Docker image."""
         image_name = self.settings.docker_image
 
-        await docker_utils.pull_image(self.docker_client, image_name)
+        logger.debug(f"Pulling Docker image '{image_name}' for crawler...")
+
+        await self.docker_client.images.pull(image_name)
 
     # endregion Image Handling
 
@@ -178,10 +245,17 @@ class Crawler:
 
         logger.debug(f"Attempting to start crawl for domain '{domain}' -> index '{elasticsearch_index_name}'")
 
-        config_file_to_inject = await self._prepare_crawl_config_file(domain, seed_url, filter_pattern, elasticsearch_index_name)
+        config_file_to_inject = await self._prepare_crawl_config_file(
+            domain=domain,
+            seed_url=seed_url,
+            filter_pattern=filter_pattern,
+            elasticsearch_index_name=elasticsearch_index_name,
+            crawler_es_settings=self.elasticsearch_settings.to_crawler_settings(),
+        )
 
         random_id = uuid4().hex[:8]
-        try:
+
+        async with self.handle_errors("starting crawl container"):
             container_id = await docker_utils.start_container_with_files(
                 docker_client=self.docker_client,
                 container_name=f"mcp-crawler-{elasticsearch_index_name}-{random_id}",
@@ -198,9 +272,6 @@ class Crawler:
 
             return container_id
 
-        except (DockerError, RuntimeError) as e:
-            raise CrawlerError(f"Failed to start crawler for domain '{domain}': {e}") from e
-
     # endregion Crawl
 
     # region Manage Crawls
@@ -208,15 +279,16 @@ class Crawler:
         """Lists all containers managed by this crawler component."""
         label_filter = f"{self.MANAGED_BY_LABEL}={self.MANAGED_BY_VALUE}"
 
-        return await docker_utils.get_containers_details(self.docker_client, label_filter)
+        async with self.handle_errors("listing crawl containers"):
+            return await docker_utils.get_containers_details(self.docker_client, label_filter)
 
     async def get_crawl_logs(self, container_id: str) -> str:
         """Gets logs for a specific crawl container.
 
         Args:
             container_id (str): The ID of the container to retrieve logs for."""
-
-        return await docker_utils.container_logs(self.docker_client, container_id)
+        async with self.handle_errors("getting crawl logs"):
+            return await docker_utils.container_logs(self.docker_client, container_id)
 
     async def stop_crawl(self, container_id: str) -> None:
         """Stops and removes a specific crawl container.
@@ -224,7 +296,8 @@ class Crawler:
         Args:
             container_id (str): The ID of the container to stop and remove.
         """
-        await docker_utils.remove_container(self.docker_client, container_id)
+        async with self.handle_errors("stopping crawl container"):
+            await docker_utils.remove_container(self.docker_client, container_id)
 
     # endregion Manage Crawls
 
@@ -237,15 +310,17 @@ class Crawler:
         """
         logger.info("Attempting to remove completed crawl containers...")
 
-        crawler_containers = await docker_utils.get_containers(
-            self.docker_client, f"{self.MANAGED_BY_LABEL}={self.MANAGED_BY_VALUE}", all_containers=True
-        )
+        async with self.handle_errors("removing completed crawl containers"):
+            crawler_containers = await docker_utils.get_containers(
+                self.docker_client, f"{self.MANAGED_BY_LABEL}={self.MANAGED_BY_VALUE}", all_containers=True
+            )
 
         completed_crawls = [container for container in crawler_containers if container["State"] == "exited"]
 
         logger.debug(f"Found {len(completed_crawls)} completed crawls.")
 
-        [await docker_utils.remove_container(self.docker_client, container["Id"]) for container in completed_crawls]
+        async with self.handle_errors("removing completed crawl containers"):
+            [await docker_utils.remove_container(self.docker_client, container["Id"]) for container in completed_crawls]
 
         logger.info(f"Removed {len(completed_crawls)} completed crawls.")
 
