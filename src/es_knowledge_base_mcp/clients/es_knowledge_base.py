@@ -365,9 +365,11 @@ class ElasticsearchKnowledgeBaseClient(KnowledgeBaseClient):
 
         index_filter = ",".join(indices)
 
-        headers: list[dict] = [{"index": index_filter} for _ in phrases]
-        bodies: list[dict] = [self._phrase_to_query(phrase, size=results, fragments=fragments) for phrase in phrases]
-        operations: list[dict] = list(itertools.chain(headers, bodies))  # type: ignore
+        operations = []
+
+        for phrase in phrases:
+            operations.append({"index": index_filter})
+            operations.append(self._phrase_to_query(phrase, size=results, fragments=fragments))
 
         # Each Operation gets its own entry, each entry is a list of hits (dictionaries) from the search
         msearch_results: list[list] = await self._msearch_hits(operations)
