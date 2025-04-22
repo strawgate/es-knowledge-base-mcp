@@ -43,6 +43,7 @@ if TYPE_CHECKING:
 
 logger = get_logger("knowledge-base-mcp.knowledge-base")
 
+HITS_CACHE_BUST_INTERVAL = 60  # seconds
 
 class ElasticsearchError(KnowledgeBaseError):
     """Base class for Elasticsearch-related errors."""
@@ -84,6 +85,8 @@ class ElasticsearchKnowledgeBaseClient(KnowledgeBaseClient):
         self.index_pattern = settings.base_index_pattern
 
         self.elasticsearch_client = elasticsearch_client
+
+        self._last_cache_bust = datetime.now()
 
     async def async_init(self):
         pass
@@ -268,7 +271,7 @@ class ElasticsearchKnowledgeBaseClient(KnowledgeBaseClient):
         async with self.error_handler(f"creating knowledge base index '{index_name}' and metadata {_meta}"):
             await self.elasticsearch_client.indices.create(index=index_name, mappings=mappings)
 
-        self._bust_caches()
+        self._bust_caches(debounce=0)
 
         return KnowledgeBase(
             name=knowledge_base_create_proto.name,
@@ -293,7 +296,7 @@ class ElasticsearchKnowledgeBaseClient(KnowledgeBaseClient):
         async with self.error_handler(f"updating knowledge base metadata for '{index_name}'"):
             await self.elasticsearch_client.indices.put_mapping(index=index_name, meta=updated_metadata)
 
-        self._bust_caches()
+        self._bust_caches(debounce=0)
 
     # endregion Create / Update KBs
 
@@ -303,7 +306,7 @@ class ElasticsearchKnowledgeBaseClient(KnowledgeBaseClient):
         async with self.error_handler(f"deleting knowledge base '{knowledge_base.backend_id}'"):
             await self.elasticsearch_client.indices.delete(index=knowledge_base.backend_id)
 
-        self._bust_caches()
+        self._bust_caches(debounce=0)
 
     # endregion Delete KBs
 
@@ -457,10 +460,22 @@ class ElasticsearchKnowledgeBaseClient(KnowledgeBaseClient):
             if kb.backend_id == index:
                 return kb.name
 
+        # If no knowledge base found with the given index, we should 
+        self._bust_caches(debounce=HITS_CACHE_BUST_INTERVAL)
+
         raise KnowledgeBaseNotFoundError(f"Knowledge base with index '{index}' not found.")
 
-    def _bust_caches(self):
+
+    def _bust_caches(self, debounce = 0):
         """Reset the LRU cache for document counts."""
+
+        if debounce == 0:
+            self._last_cache_bust = datetime.now()
+        elif (datetime.now() - self._last_cache_bust).total_seconds() < debounce:
+            logger.debug(f"Client requested debounce for cache bust, there was a recent bust, skipping for {debounce} seconds.")
+            return
+
+        logger.debug("Busting caches for ElasticsearchKnowledgeBaseClient.")
         self._get_doc_counts.cache_invalidate()
         self._get.cache_invalidate()
 
