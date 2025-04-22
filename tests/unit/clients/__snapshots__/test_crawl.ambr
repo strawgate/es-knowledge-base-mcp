@@ -1,0 +1,19 @@
+# serializer version: 1
+# name: test__prepare_crawl_config_file[basic]
+  InjectFile(filename='/config/crawl.yml', content='domains:\n- crawl_rules:\n  - pattern: /start.*\n    policy: allow\n    type: begins\n  - pattern: .*\n    policy: deny\n    type: regex\n  seed_urls:\n  - http://example.com/start\n  url: http://example.com\nelasticsearch:\n  host: localhost\n  port: 9200\nlog_level: DEBUG\noutput_index: test_index\noutput_sink: elasticsearch\n')
+# ---
+# name: test__prepare_crawl_config_file[different_values]
+  InjectFile(filename='/config/crawl.yml', content='domains:\n- crawl_rules:\n  - pattern: /docs/.*\n    policy: allow\n    type: begins\n  - pattern: .*\n    policy: deny\n    type: regex\n  seed_urls:\n  - https://sub.example.org/docs/page1\n  url: https://sub.example.org\nelasticsearch:\n  host: es-host\n  port: 9201\n  user: elastic\nlog_level: DEBUG\noutput_index: docs_index\noutput_sink: elasticsearch\n')
+# ---
+# name: test__prepare_crawl_config_file[empty_es_settings]
+  InjectFile(filename='/config/crawl.yml', content='domains:\n- crawl_rules:\n  - pattern: /start.*\n    policy: allow\n    type: begins\n  - pattern: .*\n    policy: deny\n    type: regex\n  seed_urls:\n  - http://example.com/start\n  url: http://example.com\nelasticsearch: {}\nlog_level: DEBUG\noutput_index: test_index\noutput_sink: elasticsearch\n')
+# ---
+# name: test__prepare_crawl_config_file[empty_filter]
+  InjectFile(filename='/config/crawl.yml', content="domains:\n- crawl_rules:\n  - pattern: ''\n    policy: allow\n    type: begins\n  - pattern: .*\n    policy: deny\n    type: regex\n  seed_urls:\n  - http://example.com/start\n  url: http://example.com\nelasticsearch:\n  host: localhost\n  port: 9200\nlog_level: DEBUG\noutput_index: test_index\noutput_sink: elasticsearch\n")
+# ---
+# name: test__prepare_crawl_config_file[https_ssl]
+  InjectFile(filename='/config/crawl.yml', content='domains:\n- crawl_rules:\n  - pattern: /app.*\n    policy: allow\n    type: begins\n  - pattern: .*\n    policy: deny\n    type: regex\n  seed_urls:\n  - https://secure.com/app\n  url: https://secure.com\nelasticsearch:\n  host: secure-es\n  port: 9200\n  use_ssl: true\nlog_level: DEBUG\noutput_index: secure_idx\noutput_sink: elasticsearch\n')
+# ---
+# name: test__prepare_crawl_config_file[minimal_es]
+  InjectFile(filename='/config/crawl.yml', content='domains:\n- crawl_rules:\n  - pattern: /\n    policy: allow\n    type: begins\n  - pattern: .*\n    policy: deny\n    type: regex\n  seed_urls:\n  - http://minimal.com/\n  url: http://minimal.com\nelasticsearch:\n  host: 127.0.0.1\nlog_level: DEBUG\noutput_index: minimal_idx\noutput_sink: elasticsearch\n')
+# ---
