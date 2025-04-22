@@ -35,7 +35,8 @@ install:
 
 uv-sync:
 	@echo "Running uv sync..."
-	run uv sync
+	uv sync
+	uv sync --extra dev
 
 check: lint test test-smoke
 

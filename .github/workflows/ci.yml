@@ -24,16 +24,9 @@ jobs:
           pip install uv
 
       - name: Install project dependencies
-        run: |
-          uv sync
-
-      - name: Activate virtual environment
-        run: |
-          echo "source .venv/bin/activate" >> $GITHUB_ENV
-          .venv/bin/activate
+        run: make uv-sync
 
       - name: Run check (ruff check and pytest)
-        run: make check
-
-      - name: Run smoke test
-        run: make smoke-test
+        run: |
+          make lint
+          make test
