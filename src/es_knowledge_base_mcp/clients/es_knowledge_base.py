@@ -1,5 +1,4 @@
 from async_lru import alru_cache
-import itertools
 from typing import TYPE_CHECKING, Any
 import uuid
 from elasticsearch import AsyncElasticsearch
@@ -44,6 +43,7 @@ if TYPE_CHECKING:
 logger = get_logger("knowledge-base-mcp.knowledge-base")
 
 HITS_CACHE_BUST_INTERVAL = 60  # seconds
+
 
 class ElasticsearchError(KnowledgeBaseError):
     """Base class for Elasticsearch-related errors."""
@@ -460,13 +460,12 @@ class ElasticsearchKnowledgeBaseClient(KnowledgeBaseClient):
             if kb.backend_id == index:
                 return kb.name
 
-        # If no knowledge base found with the given index, we should 
+        # If no knowledge base found with the given index, we should
         self._bust_caches(debounce=HITS_CACHE_BUST_INTERVAL)
 
         raise KnowledgeBaseNotFoundError(f"Knowledge base with index '{index}' not found.")
 
-
-    def _bust_caches(self, debounce = 0):
+    def _bust_caches(self, debounce=0):
         """Reset the LRU cache for document counts."""
 
         if debounce == 0:

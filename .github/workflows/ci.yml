@@ -27,6 +27,10 @@ jobs:
         run: |
           uv sync
 
+      - name: Activate virtual environment
+        run: |
+          echo "source $(pwd)/.venv/bin/activate" >> $GITHUB_ENV
+
       - name: Run check (ruff check and pytest)
         run: make check
 
