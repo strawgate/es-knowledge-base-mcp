@@ -42,24 +42,25 @@ check: lint test test-smoke
 
 test:
 	@echo "Running pytest..."
-	poetry run pytest
+	uv run pytest
+
 
 inspector:
 	@echo "Running MCP Inspector..."
 	npx @modelcontextprotocol/inspector
 
 test-smoke:
-	poetry run es_knowledge_base_mcp --help
+	uv run es_knowledge_base_mcp --help
 
 lint: autocorrect format
 
 autocorrect:
 	@echo "Running ruff check --fix..."
-	poetry run ruff check . --fix
+	uv run ruff check . --fix
 
 format:
 	@echo "Running ruff format..."
-	poetry run ruff format .
+	uv run ruff format .
 
 clean:
 	@echo "Cleaning up..."
