@@ -30,6 +30,7 @@ jobs:
       - name: Activate virtual environment
         run: |
           echo "source .venv/bin/activate" >> $GITHUB_ENV
+          .venv/bin/activate
 
       - name: Run check (ruff check and pytest)
         run: make check
