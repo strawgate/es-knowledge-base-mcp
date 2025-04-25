@@ -15,12 +15,12 @@ from es_knowledge_base_mcp.errors.crawler import (
     CrawlerError,
     CrawlerValidationHTTPError,
     CrawlerValidationTooManyURLsError,
-    CrawlerValidationNoIndexNofollowError,  # Import the new error
+    CrawlerValidationNoIndexNofollowError,
 )
 from requests import HTTPError
 
 from fastmcp.utilities.logging import get_logger
-from es_knowledge_base_mcp.clients.web import extract_urls_from_webpage  # Add this import
+from es_knowledge_base_mcp.clients.web import extract_urls_from_webpage
 
 from es_knowledge_base_mcp.models.settings import CrawlerSettings
 
@@ -170,7 +170,23 @@ class Crawler:
 
     @classmethod
     async def validate_crawl(cls, url: str, max_child_page_limit: int = 500) -> Dict[str, Any]:
-        """Validates whether it's a good idea to crawl the target URL."""
+        """
+        Validates whether the target URL is suitable for crawling.
+
+        Checks for potential issues such as excessive child URLs or 'noindex'/'nofollow' directives.
+
+        Args:
+            url: The URL to validate.
+            max_child_page_limit: The maximum allowed number of child pages.
+
+        Returns:
+            A dictionary containing derived crawl parameters if validation is successful.
+
+        Raises:
+            CrawlerValidationHTTPError: If there's an HTTP error fetching the URL.
+            CrawlerValidationNoIndexNofollowError: If the page has both 'noindex' and 'nofollow' directives.
+            CrawlerValidationTooManyURLsError: If the number of child URLs exceeds the limit.
+        """
         logger.debug(f"Validating url {url} for crawling")
 
         crawl_parameters = cls.derive_crawl_params(url)
@@ -178,7 +194,7 @@ class Crawler:
         logger.debug(f"Derived crawl parameters: {crawl_parameters}")
 
         try:
-            extraction_result = await extract_urls_from_webpage(  # Update call to handle new return
+            extraction_result = await extract_urls_from_webpage(
                 url=url, domain_filter=crawl_parameters["domain"], path_filter=crawl_parameters["filter_pattern"]
             )
 
@@ -187,13 +203,11 @@ class Crawler:
             logger.error(reason)
             raise CrawlerValidationHTTPError(message=reason)
 
-        # Add check for noindex and nofollow
         if extraction_result["page_is_noindex"] and extraction_result["page_is_nofollow"]:
             reason = f"Validation failed: Seed URL {url} is marked with both 'noindex' and 'nofollow'."
             logger.error(reason)
             raise CrawlerValidationNoIndexNofollowError(message=reason)
 
-        # Update URL count logic
         num_urls = len(extraction_result["urls_to_crawl"])
         logger.debug(f"Found {num_urls} URLs to crawl (excluding nofollow links).")
 

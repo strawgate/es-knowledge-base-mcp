@@ -62,6 +62,22 @@ class BulkToolCaller(MCPMixin):
         Call multiple tools registered on this MCP server in a single request. Each call can
          be for a different tool and can include different arguments. Useful for speeding up
          what would otherwise take several individual tool calls.
+
+        Args:
+            tool_calls (list[CallToolRequest]): A list of CallToolRequest objects, each specifying a tool and its arguments.
+            continue_on_error (bool): If True, continue executing subsequent tool calls even if a previous one fails. Defaults to True.
+
+        Returns:
+            list[CallToolRequestResult]: A list of results for each tool call, including success/error status and content.
+
+        Example:
+            >>> tool_calls = [
+            ...     CallToolRequest(tool="get_forecast", arguments={"city": "London"}),
+            ...     CallToolRequest(tool="get_temperature", arguments={"city": "Paris"})
+            ... ]
+            >>> results = await self.call_tools_bulk(tool_calls=tool_calls)
+            >>> for result in results:
+            ...     print(f"Tool: {result.tool}, Success: {not result.isError}, Content: {result.content}")
         """
         results = []
 
@@ -88,8 +104,18 @@ class BulkToolCaller(MCPMixin):
          take several individual tool calls.
 
         Args:
-            tool: The name of the tool to call.
-            tool_arguments: A list of dictionaries, where each dictionary contains the arguments for an individual run of the tool.
+            tool (str): The name of the tool to call.
+            tool_arguments (list[dict[str, str | int | float | bool | None]]): A list of dictionaries, where each dictionary contains the arguments for an individual run of the tool.
+            continue_on_error (bool): If True, continue executing subsequent tool calls even if a previous one fails. Defaults to True.
+
+        Returns:
+            list[CallToolRequestResult]: A list of results for each tool call, including success/error status and content.
+
+        Example:
+            >>> args_list = [{"city": "London"}, {"city": "Paris"}]
+            >>> results = await self.call_tool_bulk(tool="get_temperature", tool_arguments=args_list)
+            >>> for result in results:
+            ...     print(f"Tool: {result.tool}, Args: {result.arguments}, Success: {not result.isError}, Content: {result.content}")
         """
         results = []
 

@@ -1,16 +1,16 @@
+"""Utility functions for web-related operations."""
+
 import requests
 from bs4 import BeautifulSoup, Tag
 from urllib.parse import urljoin, urlparse, urlunparse
-from typing import Dict, Any  # Import List, Dict, Any
+from typing import Dict, Any
 
 from fastmcp.utilities.logging import get_logger
 
 logger = get_logger("knowledge-base-mcp.utils")
 
 
-async def extract_urls_from_webpage(
-    url: str, domain_filter: str | None = None, path_filter: str | None = None
-) -> Dict[str, Any]:  # Change return type
+async def extract_urls_from_webpage(url: str, domain_filter: str | None = None, path_filter: str | None = None) -> Dict[str, Any]:
     """
     Extracts all unique URLs from a given webpage, stripping fragments and query parameters. Optionally,
     filters URLs based on a specific domain and path. Also extracts meta robots directives.
@@ -42,9 +42,9 @@ async def extract_urls_from_webpage(
     # Extract Meta Robots Directives
     page_is_noindex = False
     page_is_nofollow = False
-    meta_robots = soup.find("meta", attrs={"name": lambda x: x and x.lower() == "robots"})
-    if meta_robots and meta_robots.get("content"):
-        content = meta_robots.get("content", "").lower()
+    meta_robots = soup.find("meta", attrs={"name": lambda x: x and x.lower() == "robots"})  # type: ignore
+    if meta_robots and meta_robots.get("content"):  # type: ignore
+        content = meta_robots.get("content", "").lower()  # type: ignore
         if "noindex" in content:
             page_is_noindex = True
         if "nofollow" in content:
@@ -60,10 +60,10 @@ async def extract_urls_from_webpage(
 
         href = a["href"]
         is_nofollow_link = False
-        rel_attr = a.get("rel", [])
+        rel_attr = a.get("rel", [])  # type: ignore
         if isinstance(rel_attr, str):
             rel_attr = rel_attr.split()
-        if "nofollow" in [rel.lower() for rel in rel_attr]:
+        if "nofollow" in [rel.lower() for rel in rel_attr]:  # type: ignore
             is_nofollow_link = True
 
         # Existing logic to build absolute URL (urljoin)

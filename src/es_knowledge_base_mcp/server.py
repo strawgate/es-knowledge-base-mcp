@@ -51,6 +51,19 @@ class RootContext:
 
 
 async def main():
+    """
+    Main entry point for the Knowledge Base MCP Server.
+
+    This asynchronous function initializes the server by:
+    1. Parsing command line arguments.
+    2. Loading application settings.
+    3. Configuring logging.
+    4. Initializing the Elasticsearch client.
+    5. Setting up and registering the various MCP servers (Manage, Memory, Ask, Learn, Fetch).
+    6. Registering the bulk tool caller.
+    7. Running the main MCP server loop.
+    8. Ensuring proper shutdown of all initialized components upon exit or interruption.
+    """
     arg_parsing()
 
     settings: DocsManagerSettings = load_settings()
@@ -64,10 +77,23 @@ async def main():
     # monkey patch so our yaml emitter doesnt include class names in output
     yaml.emitter.Emitter.prepare_tag = lambda self, tag: ""
 
-    def response_wrapper(func: Callable) -> Callable:
+    def text_response_wrapper(func: Callable) -> Callable:
         @functools.wraps(func)
         async def wrapper(*args, **kwargs):
             response = await func(*args, **kwargs)
+            return response
+
+        return wrapper
+
+    def yaml_response_wrapper(func: Callable) -> Callable:
+        @functools.wraps(func)
+        async def wrapper(*args, **kwargs):
+            response = await func(*args, **kwargs)
+
+            if isinstance(response, list):
+                # If the response is a list, convert each item to a dictionary
+                return "\n\n".join([yaml.dump(item, default_flow_style=False, width=10000, sort_keys=False) for item in response])
+
             return yaml.dump(response, default_flow_style=False, width=10000, sort_keys=False)
 
         return wrapper
@@ -82,7 +108,7 @@ async def main():
     # Setup the Manage server
     manage_server = ManageServer(
         knowledge_base_client=knowledge_base_client,
-        response_wrapper=response_wrapper,
+        response_wrapper=yaml_response_wrapper,
     )
     manage_mcp = FastMCP("manage-mcp")
 
@@ -95,7 +121,7 @@ async def main():
     memory_server = MemoryServer(
         knowledge_base_client=knowledge_base_client,
         memory_server_settings=settings.memory,
-        response_wrapper=response_wrapper,
+        response_wrapper=yaml_response_wrapper,
     )
 
     memory_mcp = FastMCP("memory-mcp")
@@ -108,7 +134,7 @@ async def main():
     # Initialize the Ask server
     ask_server = AskServer(
         knowledge_base_client=knowledge_base_client,
-        response_wrapper=response_wrapper,
+        response_wrapper=yaml_response_wrapper,
     )
 
     ask_mcp = FastMCP("ask-mcp")
@@ -123,7 +149,7 @@ async def main():
         knowledge_base_client=knowledge_base_client,
         crawler_settings=settings.crawler,
         elasticsearch_settings=settings.elasticsearch,
-        response_wrapper=response_wrapper,
+        response_wrapper=yaml_response_wrapper,
     )
 
     learn_mcp = FastMCP("learn-mcp")
@@ -137,11 +163,11 @@ async def main():
         learn_server = None
 
     # Initialize the Fetch server
-    fetch_server = FetchServer(response_wrapper=response_wrapper)
+    fetch_server = FetchServer(response_wrapper=text_response_wrapper)
 
     fetch_mcp = FastMCP("fetch-mcp")
 
-    await fetch_server.async_init()  # Assuming async_init is needed, add if necessary in FetchServer
+    await fetch_server.async_init()
     fetch_server.register_with_mcp(fetch_mcp)
 
     root_mcp.mount("fetch", fetch_mcp)
@@ -160,7 +186,7 @@ async def main():
         if learn_server:
             await learn_server.async_shutdown()
 
-        await fetch_server.async_shutdown()  # Assuming async_shutdown is needed, add if necessary in FetchServer
+        await fetch_server.async_shutdown()
         await manage_server.async_shutdown()
 
         await elasticsearch_client.close()

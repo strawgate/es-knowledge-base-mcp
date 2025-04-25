@@ -1,3 +1,5 @@
+"""Utility functions for interacting with Docker."""
+
 from contextlib import asynccontextmanager
 import logging
 import io

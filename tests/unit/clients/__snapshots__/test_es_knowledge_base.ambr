@@ -111,6 +111,13 @@
       }),
     }),
     'size': 5,
+    'sort': list([
+      dict({
+        '_score': dict({
+          'order': 'desc',
+        }),
+      }),
+    ]),
   })
 # ---
 # name: test_phrase_to_query[custom_size_fragments]
@@ -150,6 +157,13 @@
       }),
     }),
     'size': 10,
+    'sort': list([
+      dict({
+        '_score': dict({
+          'order': 'desc',
+        }),
+      }),
+    ]),
   })
 # ---
 # name: test_phrase_to_query[empty_phrase]
@@ -189,6 +203,13 @@
       }),
     }),
     'size': 5,
+    'sort': list([
+      dict({
+        '_score': dict({
+          'order': 'desc',
+        }),
+      }),
+    ]),
   })
 # ---
 # name: test_phrase_to_query[special_chars]
@@ -228,5 +249,12 @@
       }),
     }),
     'size': 5,
+    'sort': list([
+      dict({
+        '_score': dict({
+          'order': 'desc',
+        }),
+      }),
+    ]),
   })
 # ---

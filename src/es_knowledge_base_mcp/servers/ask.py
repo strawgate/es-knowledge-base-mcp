@@ -85,7 +85,7 @@ class AskServer:
     async def questions_for_kb(
         self,
         questions: list[str],
-        knowledge_base_name: str = Field(description="Name of the Knowledge Base"),
+        knowledge_base_names: list[str] = Field(description="Names of the Knowledge Bases"),
         answer_style: QuestionAnswerStyle = QuestionAnswerStyle.NORMAL,
     ) -> List[KnowledgeBaseSearchResult]:
         """
@@ -93,15 +93,20 @@ class AskServer:
 
         Args:
             questions: A list of strings, where each string is a question to ask the knowledge base.
-            knowledge_base_name: The name of the knowledge base to query.
+            knowledge_base_names: The names of the knowledge bases to query.
             answer_style: The desired thoroughness of the answer. Defaults to QuestionAnswerStyle.NORMAL.
+
+        Returns:
+            A list of KnowledgeBaseSearchResult objects, where each object contains the answer to a question.
+
+        Example:
+            >>> await self.questions_for_kb(questions=["What is the capital of France?"], knowledge_base_names=["my_docs"])
+            [KnowledgeBaseSearchResult(phrase='What is the capital of France?', results=[...])]
         """
 
-        knowledge_base = await self.knowledge_base_client.get_by_name(knowledge_base_name)
-
-        search_results = await self.knowledge_base_client.search(
+        search_results = await self.knowledge_base_client.search_by_names(
             phrases=questions,
-            knowledge_base=knowledge_base,
+            names=knowledge_base_names,
             results=answer_style.to_search_size(),
             fragments=answer_style.to_search_size(),
         )

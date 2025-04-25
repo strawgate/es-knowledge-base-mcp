@@ -69,7 +69,11 @@ CrawlResult = Union[CrawlStartSuccess, CrawlStartFailure]
 
 
 class LearnServer:
-    """learn server for the learn tool."""
+    """
+    MCP Server for the Learn tool.
+
+    Provides tools for learning from various data sources, such as web documentation.
+    """
 
     crawler: Crawler
 
@@ -142,6 +146,13 @@ class LearnServer:
             knowledge_base_name: The name for the new or existing knowledge base.
             knowledge_base_description: A description for the new or existing knowledge base.
             max_child_page_limit: (Optional) The maximum allowed number of child pages to crawl from the seed URL.
+
+        Returns:
+            CrawlResult: An object indicating the result of the crawl initiation (success or failure).
+
+        Example:
+            >>> await self.from_web_documentation(url="http://example.com/docs", knowledge_base_name="Example Docs", knowledge_base_description="Documentation for Example.com")
+            CrawlStartSuccess(url='http://example.com/docs', knowledge_base_id='...', container_id='...', status='success')
         """
 
         learn_web_documentation_proto = LearnWebDocumentationProto(
@@ -197,6 +208,14 @@ class LearnServer:
     async def active_documentation_requests(self) -> list[dict[str, Any]]:
         """
         Returns a list of active documentation requests.
+
         This is useful for monitoring ongoing crawls and their statuses.
+
+        Returns:
+            list[dict[str, Any]]: A list of dictionaries, where each dictionary represents an active crawl request and its status.
+
+        Example:
+            >>> await self.active_documentation_requests()
+            [{'container_id': '...', 'status': 'running', ...}]
         """
         return await self.crawler.list_crawls()
