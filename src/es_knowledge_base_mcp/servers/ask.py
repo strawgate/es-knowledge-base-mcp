@@ -59,7 +59,7 @@ class AskServer:
         Get a list of the documentation that's available.
 
         Returns:
-            True if documentation is available, False otherwise.
+            A list of KnowledgeBase objects that represent the available documentation.
         """
         knowledge_bases = await self.knowledge_base_client.get()
 
