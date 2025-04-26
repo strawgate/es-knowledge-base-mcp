@@ -5,7 +5,7 @@ from typing import Callable, List
 from fastmcp import FastMCP
 from pydantic import Field
 
-from es_knowledge_base_mcp.interfaces.knowledge_base import KnowledgeBaseClient, KnowledgeBaseSearchResult
+from es_knowledge_base_mcp.interfaces.knowledge_base import KnowledgeBase, KnowledgeBaseClient, KnowledgeBaseSearchResult
 
 from fastmcp.utilities.logging import get_logger
 
@@ -46,12 +46,26 @@ class AskServer:
         """Register the tools with the MCP server."""
         mcp.add_tool(self.response_wrapper(self.questions))
         mcp.add_tool(self.response_wrapper(self.questions_for_kb))
+        mcp.add_tool(self.response_wrapper(self.documentation_available))
 
     async def async_init(self):
         pass
 
     async def async_shutdown(self):
         pass
+
+    async def documentation_available(self) -> List[KnowledgeBase]:
+        """
+        Get a list of the documentation that's available.
+
+        Returns:
+            True if documentation is available, False otherwise.
+        """
+        knowledge_bases = await self.knowledge_base_client.get()
+
+        docs_knowledge_bases = [knowledge_base for knowledge_base in knowledge_bases if knowledge_base.type == "docs"]
+        
+        return docs_knowledge_bases
 
     async def questions(
         self, questions: list[str], answer_style: QuestionAnswerStyle = QuestionAnswerStyle.NORMAL

@@ -9,6 +9,7 @@ from es_knowledge_base_mcp.clients.crawl import Crawler, CrawlerSettings
 
 from es_knowledge_base_mcp.errors.knowledge_base import KnowledgeBaseCreationError
 from es_knowledge_base_mcp.interfaces.knowledge_base import (
+    KnowledgeBase,
     KnowledgeBaseClient,
     KnowledgeBaseCreateProto,
     kb_data_source_field,
@@ -53,6 +54,14 @@ class LearnWebDocumentationProto(ExportableModel):
     name: str = kb_name_field
     version: str = Field(default="latest", description="The version of the documentation you are sourcing from.")
     data_source: str = kb_data_source_field
+    exclude_paths: list[str] = Field(
+        default_factory=list,
+        description="A list of paths to exclude from the crawl. Not normally necessary. Useful for excluding certain sections of a website."
+    )
+    overwrite: bool = Field(
+        default=False,
+        description="If true, will overwrite the existing knowledge base with the same name. If false, will not crawl if the knowledge base already exists.",
+    )
     description: str = kb_description_field
 
     def to_knowledge_base_create_proto(self) -> KnowledgeBaseCreateProto:
@@ -135,36 +144,36 @@ class LearnServer:
         """
         return await extract_urls_from_webpage(url=url, domain_filter=None, path_filter=None)
 
+    # async def from_web_documentation(
+    #     self, url: str, knowledge_base_name: str, knowledge_base_description: str, max_child_page_limit: int | None = None
+    # ) -> CrawlResult:
+    #     """
+    #     Starts a crawl job based on a seed page and creates a knowledge base entry for it, with URL validation.
+
+    #     Args:
+    #         url: The seed URL to start the crawl from.
+    #         knowledge_base_name: The name for the new or existing knowledge base.
+    #         knowledge_base_description: A description for the new or existing knowledge base.
+    #         max_child_page_limit: (Optional) The maximum allowed number of child pages to crawl from the seed URL.
+
+    #     Returns:
+    #         CrawlResult: An object indicating the result of the crawl initiation (success or failure).
+
+    #     Example:
+    #         >>> await self.from_web_documentation(url="http://example.com/docs", knowledge_base_name="Example Docs", knowledge_base_description="Documentation for Example.com")
+    #         CrawlStartSuccess(url='http://example.com/docs', knowledge_base_id='...', container_id='...', status='success')
+    #     """
+
+    #     learn_web_documentation_proto = LearnWebDocumentationProto(
+    #         name=knowledge_base_name,
+    #         data_source=url,
+    #         description=knowledge_base_description,
+    #     )
+
+    #     return await self._from_web_documentation_request(learn_web_documentation_proto=learn_web_documentation_proto)
+
     async def from_web_documentation(
-        self, url: str, knowledge_base_name: str, knowledge_base_description: str, max_child_page_limit: int | None = None
-    ) -> CrawlResult:
-        """
-        Starts a crawl job based on a seed page and creates a knowledge base entry for it, with URL validation.
-
-        Args:
-            url: The seed URL to start the crawl from.
-            knowledge_base_name: The name for the new or existing knowledge base.
-            knowledge_base_description: A description for the new or existing knowledge base.
-            max_child_page_limit: (Optional) The maximum allowed number of child pages to crawl from the seed URL.
-
-        Returns:
-            CrawlResult: An object indicating the result of the crawl initiation (success or failure).
-
-        Example:
-            >>> await self.from_web_documentation(url="http://example.com/docs", knowledge_base_name="Example Docs", knowledge_base_description="Documentation for Example.com")
-            CrawlStartSuccess(url='http://example.com/docs', knowledge_base_id='...', container_id='...', status='success')
-        """
-
-        learn_web_documentation_proto = LearnWebDocumentationProto(
-            name=knowledge_base_name,
-            data_source=url,
-            description=knowledge_base_description,
-        )
-
-        return await self._from_web_documentation_request(learn_web_documentation_proto=learn_web_documentation_proto)
-
-    async def _from_web_documentation_request(
-        self, learn_web_documentation_proto: LearnWebDocumentationProto, max_child_page_limit: int = 500
+        self, learn_web_documentation_proto: LearnWebDocumentationProto #, max_child_page_limit: int = 500
     ) -> CrawlResult:
         """
         Starts a crawl job based on a seed page after validating the number of child URLs.
@@ -177,6 +186,8 @@ class LearnServer:
             A CrawlStartSuccess object if the crawl is initiated, otherwise a CrawlStartFailure object.
         """
         url = learn_web_documentation_proto.data_source
+        overwrite = learn_web_documentation_proto.overwrite
+        exclude_paths = learn_web_documentation_proto.exclude_paths
 
         try:
             crawl_parameters: dict[str, Any] = await Crawler.validate_crawl(url)
@@ -184,26 +195,40 @@ class LearnServer:
             logger.error(f"Validation failed for URL {url}: {e}")
             return CrawlStartFailure(url=url, reason=str(e))
 
-        try:
-            new_knowledge_base = await self.knowledge_base_client.create(
-                knowledge_base_create_proto=learn_web_documentation_proto.to_knowledge_base_create_proto()
-            )
-        except KnowledgeBaseCreationError:
-            message = f"Failed to create or update knowledge base for {url}. It may already exist."
-            logger.error(message)
-            return CrawlStartFailure(url=url, reason=message)
+        # Check if the knowledge base already exists
+        target_knowledge_base: KnowledgeBase | None
+
+
+        if target_knowledge_base := await self.knowledge_base_client.try_get_by_name(learn_web_documentation_proto.name):
+            if not overwrite:
+                message = f"Knowledge base with name '{learn_web_documentation_proto.name}' already exists. Use 'overwrite' to update it."
+                logger.error(message)
+                return CrawlStartFailure(url=url, reason=message)
+            
+        if not target_knowledge_base:
+            try:
+                target_knowledge_base = await self.knowledge_base_client.create(
+                    knowledge_base_create_proto=learn_web_documentation_proto.to_knowledge_base_create_proto()
+                )
+            except KnowledgeBaseCreationError:
+                message = f"Failed to create or update knowledge base for {url}."
+                logger.error(message)
+                return CrawlStartFailure(url=url, reason=message)
+
 
         logger.debug("Starting crawl job for URL with parameters: %s", crawl_parameters)
 
+        index_name = target_knowledge_base.backend_id
+
         try:
-            container_id = await self.crawler.crawl_domain(elasticsearch_index_name=new_knowledge_base.backend_id, **crawl_parameters)
+            container_id = await self.crawler.crawl_domain(elasticsearch_index_name=index_name, exclude_paths=exclude_paths, **crawl_parameters)
         except CrawlerError as e:
             logger.error(f"Starting crawl failed for {url}: {e}")
             return CrawlStartFailure(url=url, reason=str(e))
 
         logger.info(f"Crawl initiated successfully for {url} with container ID {container_id}")
 
-        return CrawlStartSuccess(url=url, knowledge_base_id=new_knowledge_base.backend_id, container_id=container_id)
+        return CrawlStartSuccess(url=url, knowledge_base_id=index_name, container_id=container_id)
 
     async def active_documentation_requests(self) -> list[dict[str, Any]]:
         """

@@ -193,8 +193,9 @@ class ElasticsearchKnowledgeBaseClient(KnowledgeBaseClient):
 
     async def get(self) -> list[KnowledgeBase]:
         """Get a list of all knowledge bases."""
+        knowledge_bases = await self._get()
 
-        return await self._get()
+        return sorted(knowledge_bases, key=lambda kb: kb.name.lower())
 
     @alru_cache(maxsize=1)
     async def _get(self) -> list[KnowledgeBase]:

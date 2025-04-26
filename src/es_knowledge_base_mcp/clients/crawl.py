@@ -99,7 +99,7 @@ class Crawler:
     # region Prepare Config
     @classmethod
     async def _prepare_crawl_config_file(
-        cls, domain: str, seed_url: str, filter_pattern: str, elasticsearch_index_name: str, crawler_es_settings: dict[str, Any]
+        cls, domain: str, seed_url: str, filter_pattern: str, elasticsearch_index_name: str, crawler_es_settings: dict[str, Any], exclude_paths: list[str] | None = None
     ) -> InjectFile:
         """
         Generates the crawler configuration content (as YAML) in memory. This configuration is the Crawler configuration
@@ -109,12 +109,22 @@ class Crawler:
             InjectFile: An object containing the generated config content and target path within the container.
         """
 
+
+        additional_exclusion_rules = []
+
+        if exclude_paths is not None:
+            # if the path is a full url we need to extract the path from it
+            trimmed_exclude_paths = [urllib.parse.urlparse(path).path for path in exclude_paths]
+            additional_exclusion_rules.extend([{"policy": "deny", "type": "begins", "pattern": path} for path in trimmed_exclude_paths])
+        
+
         config = {
             "domains": [
                 {
                     "url": domain,
                     "seed_urls": [seed_url],
                     "crawl_rules": [
+                        *additional_exclusion_rules,
                         {"policy": "allow", "type": "begins", "pattern": filter_pattern},
                         {"policy": "deny", "type": "regex", "pattern": ".*"},
                     ],
@@ -239,6 +249,7 @@ class Crawler:
         seed_url: str,
         filter_pattern: str,
         elasticsearch_index_name: str,
+        exclude_paths: list[str] | None = None,
     ) -> str:
         """
         Starts a crawl job asynchronously by launching a container.
@@ -248,6 +259,7 @@ class Crawler:
             seed_url (str): The seed URL to start the crawl from.
             filter_pattern (str): The filter pattern for the crawl.
             elasticsearch_index_name (str): The suffix for the output index name.
+            exclude_paths (str | None): Optional paths to exclude from the crawl.
 
         Returns:
             str: The ID of the started container.
@@ -263,6 +275,7 @@ class Crawler:
             domain=domain,
             seed_url=seed_url,
             filter_pattern=filter_pattern,
+            exclude_paths=exclude_paths,
             elasticsearch_index_name=elasticsearch_index_name,
             crawler_es_settings=self.elasticsearch_settings.to_crawler_settings(),
         )
