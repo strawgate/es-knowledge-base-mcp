@@ -1,3 +1,5 @@
+"""Pydantic models for application settings."""
+
 import logging
 
 import os

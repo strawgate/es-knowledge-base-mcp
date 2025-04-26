@@ -1,3 +1,5 @@
+"""Constants used across the knowledge base MCP."""
+
 from typing import Any, Dict
 
 

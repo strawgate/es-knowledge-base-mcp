@@ -15,12 +15,12 @@ from es_knowledge_base_mcp.errors.crawler import (
     CrawlerError,
     CrawlerValidationHTTPError,
     CrawlerValidationTooManyURLsError,
-    CrawlerValidationNoIndexNofollowError,  # Import the new error
+    CrawlerValidationNoIndexNofollowError,
 )
 from requests import HTTPError
 
 from fastmcp.utilities.logging import get_logger
-from es_knowledge_base_mcp.clients.web import extract_urls_from_webpage  # Add this import
+from es_knowledge_base_mcp.clients.web import extract_urls_from_webpage
 
 from es_knowledge_base_mcp.models.settings import CrawlerSettings
 
@@ -99,7 +99,13 @@ class Crawler:
     # region Prepare Config
     @classmethod
     async def _prepare_crawl_config_file(
-        cls, domain: str, seed_url: str, filter_pattern: str, elasticsearch_index_name: str, crawler_es_settings: dict[str, Any]
+        cls,
+        domain: str,
+        seed_url: str,
+        filter_pattern: str,
+        elasticsearch_index_name: str,
+        crawler_es_settings: dict[str, Any],
+        exclude_paths: list[str] | None = None,
     ) -> InjectFile:
         """
         Generates the crawler configuration content (as YAML) in memory. This configuration is the Crawler configuration
@@ -109,12 +115,20 @@ class Crawler:
             InjectFile: An object containing the generated config content and target path within the container.
         """
 
+        additional_exclusion_rules = []
+
+        if exclude_paths is not None:
+            # if the path is a full url we need to extract the path from it
+            trimmed_exclude_paths = [urllib.parse.urlparse(path).path for path in exclude_paths]
+            additional_exclusion_rules.extend([{"policy": "deny", "type": "begins", "pattern": path} for path in trimmed_exclude_paths])
+
         config = {
             "domains": [
                 {
                     "url": domain,
                     "seed_urls": [seed_url],
                     "crawl_rules": [
+                        *additional_exclusion_rules,
                         {"policy": "allow", "type": "begins", "pattern": filter_pattern},
                         {"policy": "deny", "type": "regex", "pattern": ".*"},
                     ],
@@ -170,7 +184,23 @@ class Crawler:
 
     @classmethod
     async def validate_crawl(cls, url: str, max_child_page_limit: int = 500) -> Dict[str, Any]:
-        """Validates whether it's a good idea to crawl the target URL."""
+        """
+        Validates whether the target URL is suitable for crawling.
+
+        Checks for potential issues such as excessive child URLs or 'noindex'/'nofollow' directives.
+
+        Args:
+            url: The URL to validate.
+            max_child_page_limit: The maximum allowed number of child pages.
+
+        Returns:
+            A dictionary containing derived crawl parameters if validation is successful.
+
+        Raises:
+            CrawlerValidationHTTPError: If there's an HTTP error fetching the URL.
+            CrawlerValidationNoIndexNofollowError: If the page has both 'noindex' and 'nofollow' directives.
+            CrawlerValidationTooManyURLsError: If the number of child URLs exceeds the limit.
+        """
         logger.debug(f"Validating url {url} for crawling")
 
         crawl_parameters = cls.derive_crawl_params(url)
@@ -178,7 +208,7 @@ class Crawler:
         logger.debug(f"Derived crawl parameters: {crawl_parameters}")
 
         try:
-            extraction_result = await extract_urls_from_webpage(  # Update call to handle new return
+            extraction_result = await extract_urls_from_webpage(
                 url=url, domain_filter=crawl_parameters["domain"], path_filter=crawl_parameters["filter_pattern"]
             )
 
@@ -187,13 +217,11 @@ class Crawler:
             logger.error(reason)
             raise CrawlerValidationHTTPError(message=reason)
 
-        # Add check for noindex and nofollow
         if extraction_result["page_is_noindex"] and extraction_result["page_is_nofollow"]:
             reason = f"Validation failed: Seed URL {url} is marked with both 'noindex' and 'nofollow'."
             logger.error(reason)
             raise CrawlerValidationNoIndexNofollowError(message=reason)
 
-        # Update URL count logic
         num_urls = len(extraction_result["urls_to_crawl"])
         logger.debug(f"Found {num_urls} URLs to crawl (excluding nofollow links).")
 
@@ -225,6 +253,7 @@ class Crawler:
         seed_url: str,
         filter_pattern: str,
         elasticsearch_index_name: str,
+        exclude_paths: list[str] | None = None,
     ) -> str:
         """
         Starts a crawl job asynchronously by launching a container.
@@ -234,6 +263,7 @@ class Crawler:
             seed_url (str): The seed URL to start the crawl from.
             filter_pattern (str): The filter pattern for the crawl.
             elasticsearch_index_name (str): The suffix for the output index name.
+            exclude_paths (str | None): Optional paths to exclude from the crawl.
 
         Returns:
             str: The ID of the started container.
@@ -249,6 +279,7 @@ class Crawler:
             domain=domain,
             seed_url=seed_url,
             filter_pattern=filter_pattern,
+            exclude_paths=exclude_paths,
             elasticsearch_index_name=elasticsearch_index_name,
             crawler_es_settings=self.elasticsearch_settings.to_crawler_settings(),
         )

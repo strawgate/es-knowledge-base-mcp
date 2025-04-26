@@ -69,48 +69,13 @@ This command executes the `main()` function within the `server.py` script. The s
 If you want to test the locally running server with your MCP host (e.g., Roo VS Code extension), you can configure it to connect to your local instance. Update your `mcp_settings.json`:
 
 ```json
-{
-  "mcpServers": {
-    "es_knowledge_base_mcp-local": { // Use a distinct name like "-local"
-      "command": "uv",
-      "args": [
-        "run",
-        "--directory",
-        "/absolute/path/to/your/cloned/es-knowledge-base-mcp", // <-- IMPORTANT: Update this path
-        "python",
-        "es_knowledge_base_mcp/server.py"
-      ],
-      "cwd": "/absolute/path/to/your/cloned/es-knowledge-base-mcp", // <-- IMPORTANT: Update this path
-      "env": {
-        "ES_HOST": "https://YOUR_ELASTICSEARCH_HOST_URL:443",
-        // --- Authentication: Provide EITHER API Key
-        "ES_API_KEY": "YOUR_BASE64_ENCODED_API_KEY",
-        // OR Username/Password
-        "ES_USERNAME": "YOUR_ELASTICSEARCH_USERNAME",
-        "ES_PASSWORD": "YOUR_ELASTICSEARCH_PASSWORD",
-
-        "MCP_TRANSPORT": "sse"
-      },
-      "alwaysAllow": [ // Example: Allow all tools for local dev
-        "get",
-        "get_by_id_or_name",
-        "update",
-        "update_name",
-        "update_description",
-        "delete",
-        "from_web_documentation",
-        "from_web_documentation_request",
-        "from_web_documentation_requests",
-        "from_thought",
-        "from_thoughts",
-        "questions",
-        "questions_for_kb"
-      ],
-      "disabled": false
-    }
-    // ... other servers ...
-  }
-}
+    "es_knowledge_base_mcp_debug": {
+      "url": "http://localhost:8000/sse",
+      "disabled": true,
+      "autoApprove": [],
+      "timeout": 30,
+      "alwaysAllow": []
+    },
 ```
 
 ## Development Tasks (Makefile)

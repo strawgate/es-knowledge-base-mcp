@@ -63,10 +63,10 @@ The recommended way to run this server is using `uvx`, which handles fetching an
             }
         ],
         "servers": {
-            "External Documentation - GitHub": {
+            "es_knowledge_base_mcp_debug": {
                 "command": "uvx",
                 "args": [
-                    "git+https://github.com/strawgate/es-documentation-manager-mcp"
+                    "git+https://github.com/strawgate/es-knowledge-base-mcp"
                 ],
                 "env": {
                     "ES_HOST": "${input:es-host}",
@@ -82,7 +82,7 @@ The recommended way to run this server is using `uvx`, which handles fetching an
 Add the following configuration block to your `mcpServers` object:
 
 ```json
-  "Knowledge Base": {
+  "es_knowledge_base_mcp_debug": {
       "command": "uvx",
       "args": [
         "git+https://github.com/strawgate/es-knowledge-base-mcp"
@@ -96,13 +96,26 @@ Add the following configuration block to your `mcpServers` object:
         "ES_PASSWORD": "YOUR_ELASTICSEARCH_PASSWORD",
       },
       "alwaysAllow": [
-        "get_documentation_types",
-        "pull_crawler_image",
-        "crawl_domains",
-        "search_specific_documentation",
-        "search_all_documentation",
-        "get_document_by_url",
-        "get_document_by_title"
+        "knowledge_base_create",
+        "knowledge_base_get",
+        "knowledge_base_get_by_backend_id",
+        "knowledge_base_get_by_name",
+        "knowledge_base_delete_by_backend_id",
+        "knowledge_base_delete_by_name",
+        "knowledge_base_update_by_backend_id",
+        "knowledge_base_update_by_name",
+        "memory_encodings",
+        "memory_encoding",
+        "memory_recall",
+        "memory_recall_last",
+        "ask_questions",
+        "ask_questions_for_kb",
+        "learn_extract_urls_from_webpage",
+        "learn_from_web_documentation",
+        "learn_active_documentation_requests",
+        "fetch_webpage",
+        "call_tool_bulk",
+        "call_tools_bulk"
       ],
       "disabled": false
     }
@@ -110,36 +123,43 @@ Add the following configuration block to your `mcpServers` object:
 
 ## Available Tools
 
-The `knowledge-base` server provides the following tools to interact with Elasticsearch knowledge bases:
+The `es_knowledge_base_mcp_debug` server provides the following tools:
 
-### Learning from Web Sources
+### Knowledge Base Management
+*   **`knowledge_base_create`**: Create a new knowledge base.
+*   **`knowledge_base_get`**: Get a list of all knowledge bases.
+*   **`knowledge_base_get_by_backend_id`**: Get a knowledge base by its backend ID.
+*   **`knowledge_base_get_by_name`**: Get a knowledge base by its name.
+*   **`knowledge_base_delete_by_backend_id`**: Delete a knowledge base by its backend ID.
+*   **`knowledge_base_delete_by_name`**: Delete a knowledge base by its name.
+*   **`knowledge_base_update_by_backend_id`**: Update the metadata of an existing knowledge base by its backend ID.
+*   **`knowledge_base_update_by_name`**: Update the description of an existing knowledge base by its name.
 
-*   **`from_web_documentation`**: Initiate a web crawl starting from a given URL (`url`) to gather information and store it as a new knowledge base. You need to provide a `knowledge_base_name` and `knowledge_base_description`.
-*   **`from_web_documentation_request`**: Start a web crawl based on a structured request object (`KnowledgeBaseProto`) containing the name, source URL, and description.
-*   **`from_web_documentation_requests`**: Initiate multiple web crawls simultaneously by providing a list of structured request objects (`KnowledgeBaseProto`).
+### Memory
+*   **`memory_encodings`**: Encode multiple memories into the memory knowledge base.
+*   **`memory_encoding`**: Encode a single memory into the memory knowledge base.
+*   **`memory_recall`**: Search the memory knowledge base using questions.
+*   **`memory_recall_last`**: Retrieve the most recent memories from the memory knowledge base.
 
-### Memory - Storing Thoughts
+### Ask
+*   **`ask_questions`**: Ask questions of the knowledge base.
+*   **`ask_questions_for_kb`**: Ask questions of a specific knowledge base.
 
-*   **`from_thought`**: Save a single piece of information (a "thought") with a `title` and `body` directly into the knowledge base system.
-*   **`from_thoughts`**: Save multiple thoughts at once by providing a list of thought objects, each with a `title` and `body`.
+### Learn
+*   **`learn_extract_urls_from_webpage`**: Extracts all unique URLs from a given webpage.
+*   **`learn_from_web_documentation`**: Starts a crawl job based on a seed page and creates a knowledge base entry for it.
+*   **`learn_active_documentation_requests`**: Returns a list of active documentation requests.
 
-### Querying Knowledge
+### Fetch
+*   **`fetch_webpage`**: Fetches a webpage and converts it to Markdown format.
 
-*   **`questions`**: Ask one or more `questions` (as a list of strings) and receive answers based on information across *all* available knowledge bases. You can specify the desired `answer_style` (concise, normal, comprehensive, exhaustive).
-*   **`questions_for_kb`**: Ask one or more `questions` targeted at a *specific* knowledge base, identified by its `knowledge_base_name`. You can also specify the `answer_style` as concise, normal, or comprehensive.
+### Bulk Operations
+*   **`call_tool_bulk`**: Call a single tool multiple times in a single request.
+*   **`call_tools_bulk`**: Call multiple tools in a single request.
 
 ## Resources
 
-*   **`kb://entry`**: Access the details (Title, Source, Description) of a specific knowledge base entry using its unique ID or assigned name. 
-
-### Knowledge Base Management
-
-*   **`get`**: Retrieve a list of all existing knowledge base entries.
-*   **`get_by_id_or_name`**: Fetch details of a specific knowledge base using its unique ID or assigned name.
-*   **`update`**: Modify the name, source URL, or description associated with a knowledge base entry.
-*   **`update_name`**: Change only the name of a specific knowledge base entry.
-*   **`update_description`**: Change only the description of a specific knowledge base entry.
-*   **`delete`**: Remove a specific knowledge base entry entirely.
+*   **`kb://entry`**: Access the details (Title, Source, Description) of a specific knowledge base entry using its unique ID or assigned name.
 
 
 ## Contributing

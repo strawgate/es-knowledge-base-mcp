@@ -1,3 +1,5 @@
+"""Elasticsearch client for managing and searching knowledge bases."""
+
 from async_lru import alru_cache
 from typing import TYPE_CHECKING, Any
 import uuid
@@ -191,8 +193,9 @@ class ElasticsearchKnowledgeBaseClient(KnowledgeBaseClient):
 
     async def get(self) -> list[KnowledgeBase]:
         """Get a list of all knowledge bases."""
+        knowledge_bases = await self._get()
 
-        return await self._get()
+        return sorted(knowledge_bases, key=lambda kb: kb.name.lower())
 
     @alru_cache(maxsize=1)
     async def _get(self) -> list[KnowledgeBase]:
@@ -312,18 +315,23 @@ class ElasticsearchKnowledgeBaseClient(KnowledgeBaseClient):
 
     # region Search KBs
     async def search_all(self, phrases: list[str], results: int = 5, fragments: int = 5) -> list[KnowledgeBaseSearchResult]:
-        """Search across all knowledge bases."""
+        """Search across all knowledge bases.
+        Args:
+            phrases (list[str]): List of phrases to search for across all knowledge bases.
+            results (int): Number of search results to return for each phrase.
+            fragments (int): Number of content fragments to return for each search result.
+        """
 
         return await self._search_by_indices(phrases=phrases, indices=[self.index_pattern], results=results, fragments=fragments)
 
     async def search(
-        self, knowledge_base: KnowledgeBase, phrases: list[str], results: int = 5, fragments: int = 5
+        self, knowledge_bases: list[KnowledgeBase], phrases: list[str], results: int = 5, fragments: int = 5
     ) -> list[KnowledgeBaseSearchResult]:
         """Search within a specific knowledge base."""
 
-        index_name = knowledge_base.backend_id
+        index_names = [knowledge_base.backend_id for knowledge_base in knowledge_bases]
 
-        return await self._search_by_indices(phrases=phrases, indices=[index_name], results=results, fragments=fragments)
+        return await self._search_by_indices(phrases=phrases, indices=index_names, results=results, fragments=fragments)
 
     async def get_recent_documents(self, knowledge_base: KnowledgeBase, results: int = 5) -> list[KnowledgeBaseDocument]:
         """Get the most recent documents from a specific knowledge base."""
@@ -356,7 +364,8 @@ class ElasticsearchKnowledgeBaseClient(KnowledgeBaseClient):
 
         return {
             "query": {"bool": {"should": [heading_match, semantic_match]}},
-            "_source": ["title", "url", "body"],  # Include body in source to use if no highlights
+            "_source": ["title", "url", "body"],
+            "sort": [{"_score": {"order": "desc"}}],
             "size": size,
             "highlight": {"number_of_fragments": fragments, "fragment_size": 500, "fields": {"body": {}}},
         }

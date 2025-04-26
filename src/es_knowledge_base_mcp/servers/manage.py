@@ -31,7 +31,7 @@ class ManageServer:
 
         # Register the tools with the MCP server.
         mcp.add_tool(self.response_wrapper(self.knowledge_base_client.create))
-        mcp.add_tool(self.response_wrapper(self.knowledge_base_client.get))
+        # mcp.add_tool(self.response_wrapper(self.knowledge_base_client.get))
         mcp.add_tool(self.response_wrapper(self.knowledge_base_client.get_by_backend_id))
         mcp.add_tool(self.response_wrapper(self.knowledge_base_client.get_by_name))
         mcp.add_tool(self.response_wrapper(self.knowledge_base_client.delete_by_backend_id))

@@ -151,10 +151,25 @@ class MemoryServer:
         self,
         questions: list[str],
     ) -> List[KnowledgeBaseSearchResult]:
-        """Search the memory knowledge base."""
+        """
+        Search the memory knowledge base.
+
+        Args:
+            questions (list[str]): A list of strings, where each string is a question to search for in the memory knowledge base.
+
+        Returns:
+            List[KnowledgeBaseSearchResult]: A list of search results, one for each question.
+
+        Example:
+            >>> search_results = await self.recall(questions=["What was the project plan?", "Any ideas for new features?"])
+            >>> for result in search_results:
+            ...     print(f"Question: {result.phrase}")
+            ...     for doc in result.results:
+            ...         print(f"  - {doc.title} ({doc.score})")
+        """
 
         return await self.knowledge_base_client.search(
-            knowledge_base=self.memory_knowledge_base,
+            knowledge_bases=[self.memory_knowledge_base],
             phrases=questions,
         )
 
@@ -162,7 +177,20 @@ class MemoryServer:
         self,
         count: int = 5,
     ) -> List[KnowledgeBaseDocument]:
-        """Search the memory knowledge base."""
+        """
+        Retrieve the most recent memories from the memory knowledge base.
+
+        Args:
+            count (int): The maximum number of recent memories to retrieve. Defaults to 5.
+
+        Returns:
+            List[KnowledgeBaseDocument]: A list of the most recent memories as KnowledgeBaseDocument objects.
+
+        Example:
+            >>> recent_memories = await self.recall_last(count=3)
+            >>> for memory in recent_memories:
+            ...     print(f"Title: {memory.title}, Content: {memory.content}")
+        """
 
         return await self.knowledge_base_client.get_recent_documents(
             knowledge_base=self.memory_knowledge_base,
