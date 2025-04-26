@@ -64,7 +64,7 @@ class AskServer:
         knowledge_bases = await self.knowledge_base_client.get()
 
         docs_knowledge_bases = [knowledge_base for knowledge_base in knowledge_bases if knowledge_base.type == "docs"]
-        
+
         return docs_knowledge_bases
 
     async def questions(

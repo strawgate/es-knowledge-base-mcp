@@ -99,7 +99,13 @@ class Crawler:
     # region Prepare Config
     @classmethod
     async def _prepare_crawl_config_file(
-        cls, domain: str, seed_url: str, filter_pattern: str, elasticsearch_index_name: str, crawler_es_settings: dict[str, Any], exclude_paths: list[str] | None = None
+        cls,
+        domain: str,
+        seed_url: str,
+        filter_pattern: str,
+        elasticsearch_index_name: str,
+        crawler_es_settings: dict[str, Any],
+        exclude_paths: list[str] | None = None,
     ) -> InjectFile:
         """
         Generates the crawler configuration content (as YAML) in memory. This configuration is the Crawler configuration
@@ -109,14 +115,12 @@ class Crawler:
             InjectFile: An object containing the generated config content and target path within the container.
         """
 
-
         additional_exclusion_rules = []
 
         if exclude_paths is not None:
             # if the path is a full url we need to extract the path from it
             trimmed_exclude_paths = [urllib.parse.urlparse(path).path for path in exclude_paths]
             additional_exclusion_rules.extend([{"policy": "deny", "type": "begins", "pattern": path} for path in trimmed_exclude_paths])
-        
 
         config = {
             "domains": [

@@ -56,7 +56,7 @@ class LearnWebDocumentationProto(ExportableModel):
     data_source: str = kb_data_source_field
     exclude_paths: list[str] = Field(
         default_factory=list,
-        description="A list of paths to exclude from the crawl. Not normally necessary. Useful for excluding certain sections of a website."
+        description="A list of paths to exclude from the crawl. Not normally necessary. Useful for excluding certain sections of a website.",
     )
     overwrite: bool = Field(
         default=False,
@@ -173,7 +173,8 @@ class LearnServer:
     #     return await self._from_web_documentation_request(learn_web_documentation_proto=learn_web_documentation_proto)
 
     async def from_web_documentation(
-        self, learn_web_documentation_proto: LearnWebDocumentationProto #, max_child_page_limit: int = 500
+        self,
+        learn_web_documentation_proto: LearnWebDocumentationProto,  # , max_child_page_limit: int = 500
     ) -> CrawlResult:
         """
         Starts a crawl job based on a seed page after validating the number of child URLs.
@@ -198,13 +199,12 @@ class LearnServer:
         # Check if the knowledge base already exists
         target_knowledge_base: KnowledgeBase | None
 
-
         if target_knowledge_base := await self.knowledge_base_client.try_get_by_name(learn_web_documentation_proto.name):
             if not overwrite:
                 message = f"Knowledge base with name '{learn_web_documentation_proto.name}' already exists. Use 'overwrite' to update it."
                 logger.error(message)
                 return CrawlStartFailure(url=url, reason=message)
-            
+
         if not target_knowledge_base:
             try:
                 target_knowledge_base = await self.knowledge_base_client.create(
@@ -215,13 +215,14 @@ class LearnServer:
                 logger.error(message)
                 return CrawlStartFailure(url=url, reason=message)
 
-
         logger.debug("Starting crawl job for URL with parameters: %s", crawl_parameters)
 
         index_name = target_knowledge_base.backend_id
 
         try:
-            container_id = await self.crawler.crawl_domain(elasticsearch_index_name=index_name, exclude_paths=exclude_paths, **crawl_parameters)
+            container_id = await self.crawler.crawl_domain(
+                elasticsearch_index_name=index_name, exclude_paths=exclude_paths, **crawl_parameters
+            )
         except CrawlerError as e:
             logger.error(f"Starting crawl failed for {url}: {e}")
             return CrawlStartFailure(url=url, reason=str(e))
