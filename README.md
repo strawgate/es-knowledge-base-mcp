@@ -59,11 +59,11 @@ The recommended way to run this server is using `uvx`, which handles fetching an
                 "type": "promptString",
                 "id": "es-api-key",
                 "description": "Elasticsearch API Key",
-                "password": false
+                "password": true
             }
         ],
         "servers": {
-            "es_knowledge_base_mcp_debug": {
+            "es_knowledge_base_mcp": {
                 "command": "uvx",
                 "args": [
                     "git+https://github.com/strawgate/es-knowledge-base-mcp"
