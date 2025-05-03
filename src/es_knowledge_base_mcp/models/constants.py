@@ -1,18 +1,19 @@
 """Constants used across the knowledge base MCP."""
 
-from typing import Any, Dict
+from typing import Any
 
 
 BASE_LOGGER_NAME = "knowledge-base-mcp"
 
-SEMANTIC_TEXT_MAPPING: Dict[str, Any] = {
+SEMANTIC_TEXT_MAPPING: dict[str, Any] = {
     "type": "semantic_text",
     "inference_id": ".elser-2-elasticsearch",
     "model_settings": {"service": "elasticsearch", "task_type": "sparse_embedding"},
 }
 
-CRAWLER_INDEX_MAPPING: Dict[str, Any] = {
+CRAWLER_INDEX_MAPPING: dict[str, Any] = {
     "properties": {
+        "@timestamp": {"type": "date"},
         "body": SEMANTIC_TEXT_MAPPING,
         "headings": SEMANTIC_TEXT_MAPPING,
         "id": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}},

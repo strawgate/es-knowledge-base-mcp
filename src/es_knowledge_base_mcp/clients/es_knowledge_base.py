@@ -3,9 +3,10 @@
 from async_lru import alru_cache
 from typing import TYPE_CHECKING, Any
 import uuid
+from copy import deepcopy
 from elasticsearch import AsyncElasticsearch
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime
+from datetime import datetime
 
 from elasticsearch import NotFoundError, ApiError, ConflictError
 
@@ -26,10 +27,13 @@ from es_knowledge_base_mcp.interfaces.knowledge_base import (
     KnowledgeBase,
     KnowledgeBaseClient,
     KnowledgeBaseCreateProto,
+    KnowledgeBaseSearchResultError,
+    KnowledgeBaseSearchResultTypes,
     KnowledgeBaseUpdateProto,
     KnowledgeBaseSearchResult,
     KnowledgeBaseDocument,
     KnowledgeBaseDocumentProto,
+    PerKnowledgeBaseSummary,
 )
 
 from elasticsearch import AuthenticationException, AuthorizationException, ConnectionError
@@ -175,18 +179,6 @@ class ElasticsearchKnowledgeBaseClient(KnowledgeBaseClient):
 
         logger.debug(f"Completed {operation}.")
 
-    @classmethod
-    def _build_metadata_mapping(cls, knowledge_base_create_proto: KnowledgeBaseCreateProto) -> dict[str, Any]:
-        """Builds the Elasticsearch _meta mapping from a KnowledgeBaseCreateProto."""
-        return {
-            "knowledge_base": {
-                "name": knowledge_base_create_proto.name,
-                "data_source": knowledge_base_create_proto.data_source,
-                "description": knowledge_base_create_proto.description,
-                "type": knowledge_base_create_proto.type,
-            }
-        }
-
     # endregion Error Handling
 
     # region Get KBs
@@ -268,11 +260,14 @@ class ElasticsearchKnowledgeBaseClient(KnowledgeBaseClient):
 
         index_name = f"{id_prefix}.{id}-{id_suffix}"
 
-        _meta = self._build_metadata_mapping(knowledge_base_create_proto)
-        mappings = {"_meta": _meta, **CRAWLER_INDEX_MAPPING}
+        index_mappings = deepcopy(x=CRAWLER_INDEX_MAPPING)
 
-        async with self.error_handler(f"creating knowledge base index '{index_name}' and metadata {_meta}"):
-            await self.elasticsearch_client.indices.create(index=index_name, mappings=mappings)
+        index_mappings = self._insert_metadata(index_mappings=index_mappings, knowledge_base_create_proto=knowledge_base_create_proto)
+
+        index_mappings = self._insert_runtime_kb_name(index_mappings=index_mappings, kb_name=knowledge_base_create_proto.name)
+
+        async with self.error_handler(f"creating knowledge base index '{index_name}' and mappings {index_mappings}"):
+            await self.elasticsearch_client.indices.create(index=index_name, mappings=index_mappings)
 
         self._bust_caches(debounce=0)
 
@@ -294,10 +289,14 @@ class ElasticsearchKnowledgeBaseClient(KnowledgeBaseClient):
         for field in knowledge_base_update.model_fields_set:
             setattr(create_proto, field, getattr(knowledge_base_update, field))
 
-        updated_metadata = self._build_metadata_mapping(create_proto)
+        mapping_update = {}
+
+        mapping_update = self._insert_metadata(index_mappings=mapping_update, knowledge_base_create_proto=create_proto)
+
+        mapping_update = self._insert_runtime_kb_name(index_mappings=mapping_update, kb_name=create_proto.name)
 
         async with self.error_handler(f"updating knowledge base metadata for '{index_name}'"):
-            await self.elasticsearch_client.indices.put_mapping(index=index_name, meta=updated_metadata)
+            await self.elasticsearch_client.indices.put_mapping(index=index_name, **mapping_update)
 
         self._bust_caches(debounce=0)
 
@@ -314,97 +313,85 @@ class ElasticsearchKnowledgeBaseClient(KnowledgeBaseClient):
     # endregion Delete KBs
 
     # region Search KBs
-    async def search_all(self, phrases: list[str], results: int = 5, fragments: int = 5) -> list[KnowledgeBaseSearchResult]:
-        """Search across all knowledge bases.
-        Args:
-            phrases (list[str]): List of phrases to search for across all knowledge bases.
-            results (int): Number of search results to return for each phrase.
-            fragments (int): Number of content fragments to return for each search result.
-        """
+    # async def search_all(self, phrases: list[str], results: int = 5, fragments: int = 5) -> list[KnowledgeBaseSearchResultTypes]:
+    #     """Search across all knowledge bases.
+    #     Args:
+    #         phrases (list[str]): List of phrases to search for across all knowledge bases.
+    #         results (int): Number of search results to return for each phrase.
+    #         fragments (int): Number of content fragments to return for each search result.
+    #     """
 
-        return await self._search_by_indices(phrases=phrases, indices=[self.index_pattern], results=results, fragments=fragments)
+    #     return await self._search_by_indices(phrases=phrases, indices=[self.index_pattern], results=results, fragments=fragments)
 
-    async def search(
-        self, knowledge_bases: list[KnowledgeBase], phrases: list[str], results: int = 5, fragments: int = 5
-    ) -> list[KnowledgeBaseSearchResult]:
+    async def search(self, phrases: list[str], results: int = 5, fragments: int = 5) -> list[KnowledgeBaseSearchResultTypes]:
         """Search within a specific knowledge base."""
 
-        index_names = [knowledge_base.backend_id for knowledge_base in knowledge_bases]
+        return await self._search_by_knowledge_base_names(
+            phrases=phrases,
+            knowledge_base_names=[],
+            results=results,
+            fragments=fragments,
+        )
 
-        return await self._search_by_indices(phrases=phrases, indices=index_names, results=results, fragments=fragments)
+    async def search_by_name(
+        self, knowledge_base_names: list[str], phrases: list[str], results: int = 5, fragments: int = 5
+    ) -> list[KnowledgeBaseSearchResultTypes]:
+        """Search within a specific knowledge base."""
+
+        return await self._search_by_knowledge_base_names(
+            phrases=phrases,
+            knowledge_base_names=knowledge_base_names,
+            results=results,
+            fragments=fragments,
+        )
 
     async def get_recent_documents(self, knowledge_base: KnowledgeBase, results: int = 5) -> list[KnowledgeBaseDocument]:
         """Get the most recent documents from a specific knowledge base."""
         index_name = knowledge_base.backend_id
 
-        msearch_results = await self._msearch_hits(
-            operations=[
-                {"index": index_name},
-                {
-                    "query": {"match_all": {}},
-                    "_source": ["title", "url", "body"],
-                    "size": results,
-                    "sort": [{"@timestamp": {"order": "desc"}}],
-                },
-            ]
-        )
+        async with self.error_handler("multi-search operation"):
+            search_response = await self.elasticsearch_client.search(
+                index=index_name,
+                query={"match_all": {}},
+                fields=["title", "url", "body"],  # type: ignore
+                size=results,
+                sort=[{"@timestamp": {"order": "desc"}}],
+            )
 
-        if not msearch_results or not msearch_results[0]:
+        if not search_response or not search_response.body or "hits" not in search_response.body:
             logger.warning(f"No recent documents found in knowledge base '{knowledge_base.name}' ({index_name}).")
             return []
 
-        return [self._hit_to_document(knowledge_base_name=knowledge_base.name, hit=hit) for hit in msearch_results[0]]
+        return [self._hit_to_document(hit=hit) for hit in search_response.body["hits"].get("hits", [])]
 
     @classmethod
-    def _phrase_to_query(cls, phrase: str, size: int = 5, fragments: int = 5) -> dict[str, Any]:
+    def _phrase_to_query(cls, phrase: str, knowledge_base_names: list[str], size: int = 5, fragments: int = 5) -> dict[str, Any]:
         """Convert phrase to queries."""
 
+        knowledge_base_match = {"terms": {"knowledge_base_name": knowledge_base_names}} if knowledge_base_names else {"match_all": {}}
         heading_match = {"match": {"headings": {"query": phrase, "boost": 1}}}
-        semantic_match = {"semantic": {"field": "body", "query": phrase, "boost": 2}}
+        semantic_match = {"semantic": {"field": "body", "query": phrase, "boost": 5}}
 
         return {
-            "query": {"bool": {"should": [heading_match, semantic_match]}},
-            "_source": ["title", "url", "body"],
+            "query": {"bool": {"filter": knowledge_base_match, "should": [heading_match, semantic_match]}},
+            "min_score": 10,
             "sort": [{"_score": {"order": "desc"}}],
             "size": size,
             "highlight": {"number_of_fragments": fragments, "fragment_size": 500, "fields": {"body": {}}},
+            "fields": ["title", "url", "body", "knowledge_base_name"],
+            "aggs": {"by_kb_name": {"terms": {"field": "knowledge_base_name"}}},
         }
 
-    async def _search_by_indices(
-        self, phrases: list[str], indices: list[str], results: int = 5, fragments: int = 5
-    ) -> list[KnowledgeBaseSearchResult]:
+    async def _search_by_knowledge_base_names(
+        self, phrases: list[str], knowledge_base_names: list[str], results: int = 5, fragments: int = 5
+    ) -> list[KnowledgeBaseSearchResultTypes]:
         """Search across specific indices."""
-
-        index_filter = ",".join(indices)
 
         operations = []
 
         for phrase in phrases:
-            operations.append({"index": index_filter})
-            operations.append(self._phrase_to_query(phrase, size=results, fragments=fragments))
-
-        # Each Operation gets its own entry, each entry is a list of hits (dictionaries) from the search
-        msearch_results: list[list] = await self._msearch_hits(operations)
-
-        if not msearch_results:
-            logger.warning("Expected at least one search result, but got none.")
-            return []
-
-        return [
-            KnowledgeBaseSearchResult(
-                phrase=phrase, results=[self._hit_to_document(await self._index_to_kb_name(hit["_index"]), hit) for hit in phrase_results]
-            )
-            for phrase, phrase_results in zip(phrases, msearch_results)
-        ]
-
-    async def _msearch_hits(self, operations: list[dict[str, Any]]) -> list[list[dict[str, Any]]]:
-        """Perform a multi-search operation and returns the raw hits.
-
-        Args:
-            operations (list[dict[str, Any]]): List of search operations to perform.
-        Returns:
-            list[list[dict[str, Any]]]: One list per search request, each list contains a list of hits as dictionaries.
-        """
+            operations.append({"index": self.index_pattern})
+            operations.append(self._phrase_to_query(phrase, knowledge_base_names=knowledge_base_names, size=results, fragments=fragments))
 
         async with self.error_handler("multi-search operation"):
             msearch_results = await self.elasticsearch_client.msearch(searches=operations)
@@ -413,24 +400,64 @@ class ElasticsearchKnowledgeBaseClient(KnowledgeBaseClient):
             logger.warning("No results returned from multi-search operation.")
             return []
 
-        return [response.get("hits", {}).get("hits", []) for response in msearch_results["responses"]]
+        search_results: list[KnowledgeBaseSearchResultTypes] = []
+
+        for i, response in enumerate(msearch_results["responses"]):
+            phrase = phrases[i]
+
+            if not response.get("hits", {}).get("hits"):
+                search_results.append(KnowledgeBaseSearchResultError(phrase=phrase, error="No hits found in one of the search responses."))
+                logger.warning("No hits found in one of the search responses.")
+                continue
+
+            summaries: list[PerKnowledgeBaseSummary] = [
+                PerKnowledgeBaseSummary(
+                    knowledge_base_name=bucket["key"],
+                    matches=bucket["doc_count"],
+                )
+                for bucket in response["aggregations"]["by_kb_name"]["buckets"]
+            ]
+
+            phrase_results: list[KnowledgeBaseDocument] = [
+                self._hit_to_document(hit=hit) for hit in response.get("hits", {}).get("hits", [])
+            ]
+
+            search_results.append(
+                KnowledgeBaseSearchResult(
+                    phrase=phrase,
+                    results=phrase_results,
+                    summaries=summaries,
+                )
+            )
+
+        return search_results
 
     @classmethod
-    def _hit_to_document(cls, knowledge_base_name: str, hit: dict[str, Any]) -> KnowledgeBaseDocument:
+    def _hit_to_document(cls, hit: dict[str, Any]) -> KnowledgeBaseDocument:
         """Convert an Elasticsearch hit to a KnowledgeBaseDocument."""
-        source = hit.get("_source", {})
-        highlights = hit.get("highlight", {})
 
-        # Use highlights for content if available, otherwise use the full body from source
-        content = highlights.get("body", [])
-        if not content and source.get("body"):
-            content = [source.get("body")]
+        doc_id = hit.get("_id", "")
+
+        highlights = hit.get("highlight", {}).get("body", [])
+
+        score = hit.get("_score", 0.0)
+
+        fields = hit.get("fields", {})
+
+        knowledge_base_name = next(iter(fields.get("knowledge_base_name", [])), "<Unknown KB>")
+
+        content = highlights or fields.get("body")
+
+        title: str = next(iter(fields.get("title", ["<No Title>"])))
+
+        url: str = next(iter(fields.get("url", [None])))
 
         return KnowledgeBaseDocument(
+            id=doc_id,
             knowledge_base_name=knowledge_base_name,
-            title=source.get("title", ""),
-            url=source.get("url", ""),
-            score=hit.get("_score", 0.0),
+            title=title,
+            url=url,
+            score=score,
             content=content,
         )
 
@@ -445,7 +472,7 @@ class ElasticsearchKnowledgeBaseClient(KnowledgeBaseClient):
         index_name = knowledge_base.backend_id
         operations = []
 
-        now = datetime.now(tz=UTC).isoformat() + "Z"
+        now = int(round(datetime.now().timestamp() * 1000))
 
         for document_proto in documents:
             operations.append({"index": {"_index": index_name}})
@@ -456,9 +483,40 @@ class ElasticsearchKnowledgeBaseClient(KnowledgeBaseClient):
             return
 
         async with self.error_handler(f"inserting documents into knowledge base '{knowledge_base.name} ({index_name})'"):
-            await self.elasticsearch_client.bulk(operations=operations)
+            result = await self.elasticsearch_client.bulk(operations=operations)
+
+        if result.get("errors", False):
+            raise KnowledgeBaseError(
+                f"Failed to insert documents into knowledge base '{knowledge_base.name} ({index_name})': {result.get('items', [])}"
+            )
+
+        self._bust_caches(debounce=3)
 
     # endregion Insert Documents
+
+    # region Update Documents
+    async def update_document(self, knowledge_base: KnowledgeBase, document_id: str, document_update: KnowledgeBaseDocumentProto) -> None:
+        """Update multiple documents in a specific knowledge base."""
+        index_name = knowledge_base.backend_id
+
+        async with self.error_handler(f"updating document {document_id} in knowledge base '{knowledge_base.name} ({index_name})'"):
+            await self.elasticsearch_client.update(index=index_name, id=document_id, doc=document_update.model_dump())
+
+        self._bust_caches(debounce=3)
+
+    # endregion Update Documents
+
+    # region Delete Documents
+    async def delete_document(self, knowledge_base: KnowledgeBase, document_id: str) -> None:
+        """Delete multiple documents from a specific knowledge base."""
+        index_name = knowledge_base.backend_id
+
+        async with self.error_handler(f"deleting document {document_id} from knowledge base '{knowledge_base.name} ({index_name})'"):
+            await self.elasticsearch_client.delete(index=index_name, id=document_id)
+
+        self._bust_caches(debounce=3)
+
+    # endregion Delete Documents
 
     async def _index_to_kb_name(self, index: str) -> str:
         """Convert an index name to a knowledge base name."""
@@ -502,3 +560,34 @@ class ElasticsearchKnowledgeBaseClient(KnowledgeBaseClient):
         # trim off any leading or trailing dashes, underscores, or periods
 
         return id[:50].strip("-_.").lower()
+
+    @classmethod
+    def _insert_runtime_kb_name(cls, index_mappings: dict[str, Any], kb_name: str) -> dict[str, Any]:
+        """Insert a runtime mapping value into the given mapping."""
+
+        escaped_value = kb_name.replace('"', '\\"')
+
+        return index_mappings | {
+            "runtime": {
+                "knowledge_base_name": {
+                    "type": "keyword",
+                    "script": {
+                        "source": f"emit('{escaped_value}')",
+                    },
+                }
+            },
+        }
+
+    @classmethod
+    def _insert_metadata(cls, index_mappings: dict[str, Any], knowledge_base_create_proto: KnowledgeBaseCreateProto) -> dict[str, Any]:
+        """Builds the Elasticsearch _meta mapping from a KnowledgeBaseCreateProto."""
+        return index_mappings | {
+            "_meta": {
+                "knowledge_base": {
+                    "name": knowledge_base_create_proto.name,
+                    "data_source": knowledge_base_create_proto.data_source,
+                    "description": knowledge_base_create_proto.description,
+                    "type": knowledge_base_create_proto.type,
+                }
+            }
+        }

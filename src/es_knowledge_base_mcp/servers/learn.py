@@ -23,9 +23,9 @@ from es_knowledge_base_mcp.clients.web import extract_urls_from_webpage
 
 from fastmcp.utilities.logging import get_logger
 
-logger = get_logger("knowledge-base-mcp.learn")
+from es_knowledge_base_mcp.models.constants import BASE_LOGGER_NAME
 
-MEMORY_KNOWLEDGE_BASE_NAME = "Memory Knowledge Base"
+logger = get_logger(BASE_LOGGER_NAME).getChild("learn")
 
 
 # region Web Docs

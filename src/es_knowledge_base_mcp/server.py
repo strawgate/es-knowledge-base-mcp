@@ -1,25 +1,28 @@
 import argparse
 import asyncio
-from dataclasses import dataclass
+from contextlib import asynccontextmanager
 import functools
-from typing import Callable
+from typing import AsyncGenerator, Callable
 from elasticsearch import AsyncElasticsearch
 from fastmcp import FastMCP
+from fastmcp.contrib.bulk_tool_caller import BulkToolCaller
+from pydantic import BaseModel
 import yaml
 from es_knowledge_base_mcp.clients.es_knowledge_base import ElasticsearchKnowledgeBaseClient
-from es_knowledge_base_mcp.interfaces.knowledge_base import KnowledgeBaseClient
+from es_knowledge_base_mcp.interfaces.knowledge_base import KnowledgeBase
 from es_knowledge_base_mcp.errors.server import ConfigurationError
+from es_knowledge_base_mcp.models.constants import BASE_LOGGER_NAME
 from es_knowledge_base_mcp.models.settings import DocsManagerSettings
 from es_knowledge_base_mcp.servers.ask import AskServer
 from es_knowledge_base_mcp.servers.learn import LearnServer
 from fastmcp.utilities.logging import get_logger
 
-from es_knowledge_base_mcp.servers.contrib.bulk_tool_caller import BulkToolCaller
 from es_knowledge_base_mcp.servers.manage import ManageServer
 from es_knowledge_base_mcp.servers.remember import MemoryServer
 from es_knowledge_base_mcp.servers.fetch import FetchServer
 
-logger = get_logger("knowledge-base-mcp")
+
+logger = get_logger(BASE_LOGGER_NAME)
 logger.setLevel("DEBUG")
 
 
@@ -40,14 +43,18 @@ def load_settings():
         raise ConfigurationError(f"Failed to load settings: {e}")
 
 
-@dataclass
-class RootContext:
-    knowledge_base_client: KnowledgeBaseClient
-    memory_server: MemoryServer
-    ask_server: AskServer
-    manage_server: ManageServer
-    learn_server: LearnServer | None
-    fetch_server: FetchServer
+class MemoryContext(BaseModel):
+    project_name: str | None
+    knowledge_base: KnowledgeBase | None
+
+
+class RootContext(BaseModel):
+    memory_context: MemoryContext = MemoryContext(project_name=None, knowledge_base=None)
+
+
+@asynccontextmanager
+async def root_lifespan(server: FastMCP) -> AsyncGenerator[RootContext, None]:
+    yield RootContext()
 
 
 async def main():
@@ -98,7 +105,7 @@ async def main():
 
         return wrapper
 
-    root_mcp = FastMCP("knowledge-base-mcp")
+    root_mcp = FastMCP("knowledge-base-mcp", lifespan=root_lifespan)
 
     knowledge_base_client = ElasticsearchKnowledgeBaseClient(
         settings=settings.knowledge_base,
@@ -129,7 +136,7 @@ async def main():
 
     memory_server.register_with_mcp(memory_mcp)
 
-    root_mcp.mount("memory", memory_mcp)
+    root_mcp.mount("memory", memory_mcp)  # type: ignore
 
     # Initialize the Ask server
     ask_server = AskServer(

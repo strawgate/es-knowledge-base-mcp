@@ -6,7 +6,10 @@ from typing import Callable
 
 from docling.document_converter import DocumentConverter
 
-logger = get_logger("knowledge-base-mcp.fetch")
+
+from es_knowledge_base_mcp.models.constants import BASE_LOGGER_NAME
+
+logger = get_logger(BASE_LOGGER_NAME).getChild("fetch")
 
 
 class FetchServer:

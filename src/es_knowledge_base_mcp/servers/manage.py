@@ -7,8 +7,9 @@ from es_knowledge_base_mcp.interfaces.knowledge_base import KnowledgeBaseClient
 
 from fastmcp.utilities.logging import get_logger
 
+from es_knowledge_base_mcp.models.constants import BASE_LOGGER_NAME
 
-logger = get_logger("knowledge-base-mcp.manage")
+logger = get_logger(BASE_LOGGER_NAME).getChild("manage")
 
 
 MANAGE_RESOURCE_PREFIX = "kb://"

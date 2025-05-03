@@ -3,7 +3,7 @@ This module defines the interface for managing and interacting with knowledge ba
 It includes models for knowledge bases, search results, and various exceptions related to knowledge base operations.
 """
 
-from typing import List, Optional, Protocol
+from typing import Optional, Protocol
 
 from pydantic import Field
 
@@ -85,18 +85,41 @@ class KnowledgeBaseDocumentProto(ExportableModel):
 class KnowledgeBaseDocument(ExportableModel):
     """Model for a search result from a Knowledge Base."""
 
+    id: str = Field(description="The Elasticsearch document ID.")
     knowledge_base_name: str = kb_name_field
     title: str = document_title_field
-    url: str = Field(description="The original URL of the document searched.")
-    score: float = Field(description="Relevance score of the search result, typically a float value.")
-    content: List[str] = document_content_field
+    url: str | None = Field(description="The original URL of the document searched.")
+    score: float | None = Field(description="Relevance score of the search result, typically a float value.")
+    content: list[str] = document_content_field
+
+
+class PerKnowledgeBaseSummary(ExportableModel):
+    """A summary of the number of results found in each knowledge base for the provided search phrases."""
+
+    knowledge_base_name: str = kb_name_field
+    matches: int = Field(description="The number of documents that matched the search phrase in this knowledge base.")
+
+
+type KnowledgeBaseSearchResultTypes = KnowledgeBaseSearchResult | KnowledgeBaseSearchResultError
 
 
 class KnowledgeBaseSearchResult(ExportableModel):
     """Model for search results from a Knowledge Base."""
 
     phrase: str = Field(description="The search phrase used to query the knowledge base.")
-    results: List[KnowledgeBaseDocument] = Field(default_factory=list, description="List of search results from the knowledge base.")
+    summaries: list[PerKnowledgeBaseSummary] = Field(
+        default_factory=list, description="Summary of other results found in each knowledge base for the search phrase."
+    )
+    results: list[KnowledgeBaseDocument] = Field(
+        default_factory=list, description="List of highest scoring search results from the knowledge base."
+    )
+
+
+class KnowledgeBaseSearchResultError(ExportableModel):
+    """Model for errors encountered during a knowledge base search."""
+
+    phrase: str = Field(description="The search phrase that caused the error.")
+    error: str = Field(description="Description of the error encountered during the search.")
 
 
 # @runtime_checkable
@@ -155,7 +178,7 @@ class KnowledgeBaseClient(Protocol):
         """
         ...
 
-    async def search_all(self, phrases: list[str], results: int = 5, fragments: int = 5) -> list[KnowledgeBaseSearchResult]:
+    async def search(self, phrases: list[str], results: int = 5, fragments: int = 5) -> list[KnowledgeBaseSearchResultTypes]:
         """
         Search across all knowledge bases.
 
@@ -165,24 +188,24 @@ class KnowledgeBaseClient(Protocol):
             fragments (int): Number of content fragments to return for each search result.
 
         Returns:
-            list[KnowledgeBaseSearchResult]: A list of search results, one for each phrase.
+            list[KnowledgeBaseSearchResultTypes]: A list of search results, one for each phrase.
         """
         ...
 
-    async def search(
-        self, knowledge_bases: list[KnowledgeBase], phrases: list[str], results: int = 5, fragments: int = 5
-    ) -> list[KnowledgeBaseSearchResult]:
+    async def search_by_name(
+        self, knowledge_base_names: list[str], phrases: list[str], results: int = 5, fragments: int = 5
+    ) -> list[KnowledgeBaseSearchResultTypes]:
         """
         Search within specific knowledge bases.
 
         Args:
-            knowledge_bases (list[KnowledgeBase]): A list of KnowledgeBase objects to search within.
+            knowledge_base_names (list[str]): A list of KnowledgeBase objects to search within.
             phrases (list[str]): List of phrases to search for within the specified knowledge bases.
             results (int): Number of search results to return for each phrase.
             fragments (int): Number of content fragments to return for each search result.
 
         Returns:
-            list[KnowledgeBaseSearchResult]: A list of search results, one for each phrase.
+            list[KnowledgeBaseSearchResultTypes]: A list of search results, one for each phrase.
         """
         ...
 
@@ -206,6 +229,26 @@ class KnowledgeBaseClient(Protocol):
         Args:
             knowledge_base (KnowledgeBase): The KnowledgeBase object to add documents to.
             documents (list[KnowledgeBaseDocumentProto]): A list of document prototypes to insert.
+        """
+        ...
+
+    async def delete_document(self, knowledge_base: KnowledgeBase, document_id: str) -> None:
+        """
+        Delete multiple documents from a specific knowledge base.
+
+        Args:
+            knowledge_base (KnowledgeBase): The KnowledgeBase object to delete documents from.
+            documents (list[KnowledgeBaseDocument]): A list of KnowledgeBaseDocument objects to delete.
+        """
+        ...
+
+    async def update_document(self, knowledge_base: KnowledgeBase, document_id: str, document_update: KnowledgeBaseDocumentProto) -> None:
+        """
+        Update multiple documents in a specific knowledge base.
+
+        Args:
+            knowledge_base (KnowledgeBase): The KnowledgeBase object to update documents in.
+            documents (list[KnowledgeBaseDocumentProto]): A list of document prototypes with updated content.
         """
         ...
 
@@ -405,59 +448,57 @@ class KnowledgeBaseClient(Protocol):
 
         await self.delete(knowledge_base)
 
-    async def search_by_backend_id(
-        self, backend_id: str, phrases: list[str], results: int = 5, fragments: int = 5
-    ) -> list[KnowledgeBaseSearchResult]:
-        """
-        Search within a knowledge base by its backend ID.
+    # async def search_by_backend_id(
+    #     self, backend_id: str, phrases: list[str], results: int = 5, fragments: int = 5
+    # ) -> list[KnowledgeBaseSearchResultTypes]:
+    #     """
+    #     Search within a knowledge base by its backend ID.
 
-        Args:
-            backend_id (str): The backend ID of the knowledge base to search within.
-            phrases (list[str]): List of phrases to search for within the knowledge base.
-            results (int): Number of search results to return for each question.
-            fragments (int): Number of content fragments to return for each search result.
+    #     Args:
+    #         backend_id (str): The backend ID of the knowledge base to search within.
+    #         phrases (list[str]): List of phrases to search for within the knowledge base.
+    #         results (int): Number of search results to return for each question.
+    #         fragments (int): Number of content fragments to return for each search result.
 
-        Returns:
-            list[KnowledgeBaseSearchResult]: A list of search results, one for each phrase.
+    #     Returns:
+    #         list[KnowledgeBaseSearchResultTypes]: A list of search results, one for each phrase.
 
-        Example:
-            >>> search_results = await client.search_by_backend_id(backend_id="my-kb-12345", phrases=["search term"])
-            >>> for result in search_results:
-            ...     print(f"Phrase: {result.phrase}")
-            ...     for doc in result.results:
-            ...         print(f"  - {doc.title} ({doc.score})")
-        """
+    #     Example:
+    #         >>> search_results = await client.search_by_backend_id(backend_id="my-kb-12345", phrases=["search term"])
+    #         >>> for result in search_results:
+    #         ...     print(f"Phrase: {result.phrase}")
+    #         ...     for doc in result.results:
+    #         ...         print(f"  - {doc.title} ({doc.score})")
+    #     """
 
-        knowledge_base = await self.get_by_backend_id(backend_id)
+    #     knowledge_base = await self.get_by_backend_id(backend_id)
 
-        return await self.search([knowledge_base], phrases, results, fragments)
+    #     return await self.search([knowledge_base], phrases, results, fragments)
 
-    async def search_by_names(
-        self, names: list[str], phrases: list[str], results: int = 5, fragments: int = 5
-    ) -> list[KnowledgeBaseSearchResult]:
-        """
-        Search within knowledge bases by their names.
+    # async def search_by_names(
+    #     self, names: list[str], phrases: list[str], results: int = 5, fragments: int = 5
+    # ) -> list[KnowledgeBaseSearchResultTypes]:
+    #     """
+    #     Search within knowledge bases by their names.
 
-        Args:
-            names (list[str]): The names of the knowledge bases to search within.
-            phrases (list[str]): List of phrases to search for within the specified knowledge bases.
-            results (int): Number of search results to return for each question.
-            fragments (int): Number of content fragments to return for each search result.
+    #     Args:
+    #         names (list[str]): The names of the knowledge bases to search within.
+    #         phrases (list[str]): List of phrases to search for within the specified knowledge bases.
+    #         results (int): Number of search results to return for each question.
+    #         fragments (int): Number of content fragments to return for each search result.
 
-        Returns:
-            list[KnowledgeBaseSearchResult]: A list of search results, one for each phrase.
+    #     Returns:
+    #         list[KnowledgeBaseSearchResultTypes]: A list of search results, one for each phrase.
 
-        Example:
-            >>> search_results = await client.search_by_names(names=["My Docs", "Another KB"], phrases=["search term"])
-            >>> for result in search_results:
-            ...     print(f"Phrase: {result.phrase}")
-            ...     for doc in result.results:
-            ...         print(f"  - {doc.title} ({doc.score})")
-        """
+    #     Example:
+    #         >>> search_results = await client.search_by_names(names=["My Docs", "Another KB"], phrases=["search term"])
+    #         >>> for result in search_results:
+    #         ...     print(f"Phrase: {result.phrase}")
+    #         ...     for doc in result.results:
+    #         ...         print(f"  - {doc.title} ({doc.score})")
+    #     """
 
-        knowledge_bases = [await self.get_by_name(name) for name in names]
-
-        return await self.search(knowledge_bases, phrases, results, fragments)
+    #     ...
 
     async def insert_document(self, knowledge_base: KnowledgeBase, document: KnowledgeBaseDocumentProto) -> None:
         """
