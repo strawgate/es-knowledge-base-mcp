@@ -1,11 +1,12 @@
 """Pydantic models for application settings."""
 
 import logging
-
 import os
-from typing import Any, Literal, Optional, Dict, Self
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from typing import Any, Literal, Self
+
 from pydantic import Field, SecretStr, model_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
 from es_knowledge_base_mcp.models.constants import BASE_LOGGER_NAME
 
 logger = logging.getLogger(BASE_LOGGER_NAME)
@@ -39,7 +40,7 @@ class LoggingSettings(BaseSettings):
         default=f"%(asctime)s : {os.getpid()} - %(name)s - %(levelname)s - %(message)s",
         description="Logging format.",
     )
-    log_file: Optional[str] = Field(default=None, description="Log file path.")
+    log_file: str | None = Field(default=None, description="Log file path.")
 
     def configure_logging(self):
         """Configure logging based on the settings."""
@@ -93,9 +94,9 @@ class ElasticsearchSettings(BaseElasticsearchSettings):
         description="Maximum size in bytes for bulk API operations.",
     )
 
-    username: Optional[str] = Field(default=None, alias="es_username", description="Username for basic authentication.")
-    password: Optional[SecretStr] = Field(default=None, alias="es_password", exclude=True, description="Password for basic authentication.")
-    api_key: Optional[SecretStr] = Field(default=None, alias="es_api_key", exclude=True, description="API key for authentication.")
+    username: str | None = Field(default=None, alias="es_username", description="Username for basic authentication.")
+    password: SecretStr | None = Field(default=None, alias="es_password", exclude=True, description="Password for basic authentication.")
+    api_key: SecretStr | None = Field(default=None, alias="es_api_key", exclude=True, description="API key for authentication.")
 
     # validate that only one of the authentication methods is set
     @model_validator(mode="after")
@@ -109,7 +110,7 @@ class ElasticsearchSettings(BaseElasticsearchSettings):
             raise ValueError("Password requires a username.")
         return self
 
-    def _get_auth_dict(self) -> Dict[str, Any]:
+    def _get_auth_dict(self) -> dict[str, Any]:
         """Get the authentication dictionary for Elasticsearch."""
         auth_dict = {}
 
@@ -125,7 +126,7 @@ class ElasticsearchSettings(BaseElasticsearchSettings):
 
         return auth_dict
 
-    def to_client_settings(self) -> Dict[str, Any]:
+    def to_client_settings(self) -> dict[str, Any]:
         settings = {
             "hosts": [self.host],
             "request_timeout": self.request_timeout,
@@ -138,7 +139,7 @@ class ElasticsearchSettings(BaseElasticsearchSettings):
 
         return settings
 
-    def to_crawler_settings(self) -> Dict[str, Any]:
+    def to_crawler_settings(self) -> dict[str, Any]:
         settings = {
             "host": self.host,
             "request_timeout": self.request_timeout,

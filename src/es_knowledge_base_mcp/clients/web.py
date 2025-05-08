@@ -1,18 +1,17 @@
 """Utility functions for web-related operations."""
 
+from typing import Any
+from urllib.parse import urljoin, urlparse, urlunparse
+
 import requests
 from bs4 import BeautifulSoup, Tag
-from urllib.parse import urljoin, urlparse, urlunparse
-from typing import Dict, Any
-
 from fastmcp.utilities.logging import get_logger
 
 logger = get_logger("knowledge-base-mcp.utils")
 
 
-async def extract_urls_from_webpage(url: str, domain_filter: str | None = None, path_filter: str | None = None) -> Dict[str, Any]:
-    """
-    Extracts all unique URLs from a given webpage, stripping fragments and query parameters. Optionally,
+async def extract_urls_from_webpage(url: str, domain_filter: str | None = None, path_filter: str | None = None) -> dict[str, Any]:
+    """Extracts all unique URLs from a given webpage, stripping fragments and query parameters. Optionally,
     filters URLs based on a specific domain and path. Also extracts meta robots directives.
 
     Args:
@@ -33,8 +32,8 @@ async def extract_urls_from_webpage(url: str, domain_filter: str | None = None, 
         >>> result = await extract_urls_from_webpage("http://example.com")
         >>> result["urls_to_crawl"]
         ["http://example.com/page1", "http://example.com/page2"]
-    """
 
+    """
     response = requests.get(url)
     response.raise_for_status()
     soup = BeautifulSoup(response.content, "html.parser")

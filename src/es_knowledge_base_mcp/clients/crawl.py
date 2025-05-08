@@ -1,27 +1,26 @@
 from __future__ import annotations
-from contextlib import asynccontextmanager
-from uuid import uuid4
-import yaml
+
 import urllib.parse
-from typing import TYPE_CHECKING, List, Dict, Any
+from contextlib import asynccontextmanager
+from typing import TYPE_CHECKING, Any
+from uuid import uuid4
+
+import yaml
 from aiodocker.docker import Docker
 from aiodocker.exceptions import DockerError
-
+from fastmcp.utilities.logging import get_logger
+from requests import HTTPError
 
 from es_knowledge_base_mcp.clients import docker as docker_utils
 from es_knowledge_base_mcp.clients.docker import InjectFile
+from es_knowledge_base_mcp.clients.web import extract_urls_from_webpage
 from es_knowledge_base_mcp.errors.crawler import (
     CrawlerDockerError,
     CrawlerError,
     CrawlerValidationHTTPError,
-    CrawlerValidationTooManyURLsError,
     CrawlerValidationNoIndexNofollowError,
+    CrawlerValidationTooManyURLsError,
 )
-from requests import HTTPError
-
-from fastmcp.utilities.logging import get_logger
-from es_knowledge_base_mcp.clients.web import extract_urls_from_webpage
-
 from es_knowledge_base_mcp.models.settings import CrawlerSettings
 
 if TYPE_CHECKING:
@@ -54,7 +53,6 @@ class Crawler:
         elasticsearch_settings: ElasticsearchSettings,
     ):
         """Initializes the Crawler component."""
-
         self.elasticsearch_settings = elasticsearch_settings
 
         self.settings = settings
@@ -107,14 +105,13 @@ class Crawler:
         crawler_es_settings: dict[str, Any],
         exclude_paths: list[str] | None = None,
     ) -> InjectFile:
-        """
-        Generates the crawler configuration content (as YAML) in memory. This configuration is the Crawler configuration
+        """Generates the crawler configuration content (as YAML) in memory. This configuration is the Crawler configuration
         which is documented in https://github.com/elastic/crawler/blob/main/docs/CONFIG.md.
 
         Returns:
             InjectFile: An object containing the generated config content and target path within the container.
-        """
 
+        """
         additional_exclusion_rules = []
 
         if exclude_paths is not None:
@@ -149,7 +146,7 @@ class Crawler:
     # endregion Prepare Config
 
     @classmethod
-    def derive_crawl_params(cls, url: str) -> Dict[str, str]:
+    def derive_crawl_params(cls, url: str) -> dict[str, str]:
         """Derives crawl parameters using a heuristic based on the URL. Intelligently determine
         the right parameters to use based on the URL provided:
         1. If the url has a file extension, we assume it's a file. We then crawl everything that matches the url
@@ -162,8 +159,8 @@ class Crawler:
 
         Returns:
             A dictionary containing "page_url", "domain", "filter_pattern", and "elasticsearch_index_name".
-        """
 
+        """
         parsed = urllib.parse.urlparse(url)
 
         path = parsed.path
@@ -183,9 +180,8 @@ class Crawler:
     # region Crawl Validation
 
     @classmethod
-    async def validate_crawl(cls, url: str, max_child_page_limit: int = 500) -> Dict[str, Any]:
-        """
-        Validates whether the target URL is suitable for crawling.
+    async def validate_crawl(cls, url: str, max_child_page_limit: int = 500) -> dict[str, Any]:
+        """Validates whether the target URL is suitable for crawling.
 
         Checks for potential issues such as excessive child URLs or 'noindex'/'nofollow' directives.
 
@@ -200,6 +196,7 @@ class Crawler:
             CrawlerValidationHTTPError: If there's an HTTP error fetching the URL.
             CrawlerValidationNoIndexNofollowError: If the page has both 'noindex' and 'nofollow' directives.
             CrawlerValidationTooManyURLsError: If the number of child URLs exceeds the limit.
+
         """
         logger.debug(f"Validating url {url} for crawling")
 
@@ -255,8 +252,7 @@ class Crawler:
         elasticsearch_index_name: str,
         exclude_paths: list[str] | None = None,
     ) -> str:
-        """
-        Starts a crawl job asynchronously by launching a container.
+        """Starts a crawl job asynchronously by launching a container.
 
         Args:
             domain (str): The domain to crawl.
@@ -271,8 +267,8 @@ class Crawler:
         Example:
             >>> crawl_domain("http://example.com", "http://example.com/start", "/filter", "example_com")
             "container_id_123456"
-        """
 
+        """
         logger.debug(f"Attempting to start crawl for domain '{domain}' -> index '{elasticsearch_index_name}'")
 
         config_file_to_inject = await self._prepare_crawl_config_file(
@@ -306,7 +302,7 @@ class Crawler:
     # endregion Crawl
 
     # region Manage Crawls
-    async def list_crawls(self) -> List[Dict[str, Any]]:
+    async def list_crawls(self) -> list[dict[str, Any]]:
         """Lists all containers managed by this crawler component."""
         label_filter = f"{self.MANAGED_BY_LABEL}={self.MANAGED_BY_VALUE}"
 
@@ -317,7 +313,9 @@ class Crawler:
         """Gets logs for a specific crawl container.
 
         Args:
-            container_id (str): The ID of the container to retrieve logs for."""
+            container_id (str): The ID of the container to retrieve logs for.
+
+        """
         async with self.handle_errors("getting crawl logs"):
             return await docker_utils.container_logs(self.docker_client, container_id)
 
@@ -326,6 +324,7 @@ class Crawler:
 
         Args:
             container_id (str): The ID of the container to stop and remove.
+
         """
         async with self.handle_errors("stopping crawl container"):
             await docker_utils.remove_container(self.docker_client, container_id)
@@ -334,9 +333,8 @@ class Crawler:
 
     # region Cleanup
 
-    async def remove_completed_crawls(self) -> Dict[str, Any]:
-        """
-        Removes all completed (exited) crawl containers managed by this component.
+    async def remove_completed_crawls(self) -> dict[str, Any]:
+        """Removes all completed (exited) crawl containers managed by this component.
         Returns a summary of the operation.
         """
         logger.info("Attempting to remove completed crawl containers...")

@@ -1,14 +1,17 @@
 """Utility functions for interacting with Docker."""
 
-from contextlib import asynccontextmanager
-import logging
-import io
-import tarfile
 import datetime
+import io
+import logging
+import tarfile
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+from dataclasses import dataclass
+from typing import Any
+
 from aiodocker.docker import Docker, DockerContainer
 from aiodocker.exceptions import DockerError
-from dataclasses import dataclass
-from typing import AsyncIterator, List, Dict, Any, Optional
+
 from es_knowledge_base_mcp.models.constants import BASE_LOGGER_NAME
 
 logger = logging.getLogger(BASE_LOGGER_NAME).getChild("utils").getChild("docker")
@@ -30,7 +33,7 @@ class InjectFile:
             file_bytes = self.content.encode("utf-8")
             tarinfo = tarfile.TarInfo(name=self.filename.lstrip("/"))
             tarinfo.size = len(file_bytes)
-            tarinfo.mtime = int(datetime.datetime.now(datetime.timezone.utc).timestamp())
+            tarinfo.mtime = int(datetime.datetime.now(datetime.UTC).timestamp())
             tar.addfile(tarinfo, io.BytesIO(file_bytes))
 
         tar_stream.seek(0)
@@ -61,10 +64,10 @@ async def handle_errors(operation: str) -> AsyncIterator[None]:
 async def start_container_with_files(
     docker_client: Docker,
     image_name: str,
-    command: List[str],
-    files_to_inject: List[InjectFile],
-    labels: Dict[str, str],
-    container_name: Optional[str] = None,
+    command: list[str],
+    files_to_inject: list[InjectFile],
+    labels: dict[str, str],
+    container_name: str | None = None,
 ) -> str:
     """Creates a container, injects files into it, and then starts it.
 
@@ -89,9 +92,9 @@ async def start_container_with_files(
                 container_name="my_container"
             )
     12-character container ID is returned.
-    """
 
-    container: Optional[DockerContainer] = None
+    """
+    container: DockerContainer | None = None
 
     container_config = {
         "Image": image_name,
@@ -135,9 +138,8 @@ async def get_containers(docker_client: Docker, label_filter: str, all_container
     return containers
 
 
-async def get_containers_details(docker_client: Docker, label_filter: str, all_containers: bool = False) -> List[Dict[str, Any]]:
+async def get_containers_details(docker_client: Docker, label_filter: str, all_containers: bool = False) -> list[dict[str, Any]]:
     """Lists containers matching a label filter, returning detailed info."""
-
     containers = await get_containers(docker_client, label_filter, all_containers)
 
     return [container._container for container in containers]
@@ -145,7 +147,6 @@ async def get_containers_details(docker_client: Docker, label_filter: str, all_c
 
 async def container_logs(docker_client: Docker, container_id: str) -> str:
     """Retrieves logs for a specific container ID."""
-
     logger.debug(f"Retrieving logs for container '{container_id}'...")
 
     async with handle_errors("container logs"):
@@ -175,7 +176,6 @@ async def remove_container(docker_client: Docker, container_id: str) -> None:
 
 async def remove_containers(docker_client: Docker, label_filter: str) -> None:
     """Removes containers matching a label filter."""
-
     containers = await get_containers(docker_client, label_filter)
 
     logger.debug(f"Removing {len(containers)} container(s) matching label filter '{label_filter}'...")

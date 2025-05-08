@@ -1,18 +1,19 @@
-import pytest
 from unittest.mock import patch
+
+import pytest
 import requests  # Import requests
+
 from es_knowledge_base_mcp.clients.web import extract_urls_from_webpage
 
 
 @pytest.mark.asyncio
 async def test_extract_urls_from_webpage():
     """Tests the extract_urls_from_webpage tool."""
-
     with patch("requests.get") as mock_get:
         mock_response = patch("requests.Response").start()
         mock_response.status_code = 200
         mock_response.raise_for_status.return_value = None  # Simulate success
-        mock_response.content = """
+        mock_response.content = b"""
         <html>
         <body>
             <a href="http://example.com/page1">Link 1</a>
@@ -20,7 +21,7 @@ async def test_extract_urls_from_webpage():
             <a href="https://anothersite.com/page3">Link 3</a>
         </body>
         </html>
-        """.encode("utf-8")
+        """
 
         mock_get.return_value = mock_response
 
