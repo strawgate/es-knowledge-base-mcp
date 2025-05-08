@@ -1,14 +1,14 @@
-import pytest
-from unittest.mock import patch, AsyncMock
+from unittest.mock import AsyncMock, patch
 
+import pytest
 from requests import HTTPError
 
 from es_knowledge_base_mcp.clients.crawl import Crawler
 from es_knowledge_base_mcp.clients.docker import InjectFile
 from es_knowledge_base_mcp.errors.crawler import (
     CrawlerValidationHTTPError,
-    CrawlerValidationTooManyURLsError,
     CrawlerValidationNoIndexNofollowError,
+    CrawlerValidationTooManyURLsError,
 )  # Import new error
 
 

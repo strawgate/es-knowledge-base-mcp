@@ -2,7 +2,6 @@
 
 from typing import Any
 
-
 BASE_LOGGER_NAME = "knowledge-base-mcp"
 
 SEMANTIC_TEXT_MAPPING: dict[str, Any] = {

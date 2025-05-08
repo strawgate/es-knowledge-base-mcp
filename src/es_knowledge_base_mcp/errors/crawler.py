@@ -46,4 +46,3 @@ class CrawlerDockerContainerError(CrawlerDockerError):
 class CrawlerValidationNoIndexNofollowError(CrawlerValidationError):
     """Raised when a seed URL is marked with both noindex and nofollow."""
 
-    pass

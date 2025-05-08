@@ -1,49 +1,66 @@
 """MCP Server for the Manage tool."""
 
-from typing import Callable
-from fastmcp import FastMCP
-
-from es_knowledge_base_mcp.interfaces.knowledge_base import KnowledgeBaseClient
-
+from fastmcp.contrib.mcp_mixin import MCPMixin, mcp_tool
 from fastmcp.utilities.logging import get_logger
+from pydantic import Field
 
+from es_knowledge_base_mcp.interfaces.knowledge_base import (
+    KnowledgeBase,
+    KnowledgeBaseClient,
+    KnowledgeBaseCreateProto,
+    KnowledgeBaseUpdateProto,
+)
 from es_knowledge_base_mcp.models.constants import BASE_LOGGER_NAME
+
+logger = get_logger(BASE_LOGGER_NAME).getChild("manage")
+
 
 logger = get_logger(BASE_LOGGER_NAME).getChild("manage")
 
 
 MANAGE_RESOURCE_PREFIX = "kb://"
 
+BACKEND_ID_FIELD = Field(description="The backend ID of the knowledge base.")
+NAME_FIELD = Field(description="The name of the knowledge base.")
+KNOWLEDGE_BASE_CREATE_PROTO_FIELD = Field(description="The prototype object containing the details for the new knowledge base.")
+KNOWLEDGE_BASE_UPDATE_PROTO_FIELD = Field(description="The prototype object containing the updated details.")
 
-class ManageServer:
+
+class ManageServer(MCPMixin):
     """Manage server for managing the Knowledge Base."""
 
     knowledge_base_client: KnowledgeBaseClient
 
-    response_wrapper: Callable
-
-    def __init__(self, knowledge_base_client: KnowledgeBaseClient, response_wrapper: Callable | None = None):
+    def __init__(self, knowledge_base_client: KnowledgeBaseClient) -> None:
+        """Initialize the ManageServer with a KnowledgeBaseClient."""
         self.knowledge_base_client = knowledge_base_client
 
-        self.response_wrapper = response_wrapper or (lambda response: response)
+    @mcp_tool()
+    async def create(self, knowledge_base_create_proto: KnowledgeBaseCreateProto = KNOWLEDGE_BASE_CREATE_PROTO_FIELD) -> KnowledgeBase:
+        """Create a new knowledge base.
 
-    def register_with_mcp(self, mcp: FastMCP):
-        """Register the tools with the MCP server."""
+        Returns:
+            KnowledgeBase: The created knowledge base object.
+        """
+        return await self.knowledge_base_client.create(knowledge_base_create_proto=knowledge_base_create_proto)
 
-        # Register the tools with the MCP server.
-        mcp.add_tool(self.response_wrapper(self.knowledge_base_client.create))
-        # mcp.add_tool(self.response_wrapper(self.knowledge_base_client.get))
-        mcp.add_tool(self.response_wrapper(self.knowledge_base_client.get_by_backend_id))
-        mcp.add_tool(self.response_wrapper(self.knowledge_base_client.get_by_name))
-        mcp.add_tool(self.response_wrapper(self.knowledge_base_client.delete_by_backend_id))
-        mcp.add_tool(self.response_wrapper(self.knowledge_base_client.delete_by_name))
-        mcp.add_tool(self.response_wrapper(self.knowledge_base_client.update_by_backend_id))
-        mcp.add_tool(self.response_wrapper(self.knowledge_base_client.update_by_name))
+    @mcp_tool()
+    async def get(self, name: str = NAME_FIELD) -> KnowledgeBase:
+        """Get a knowledge base by its name.
 
-        mcp.add_resource_fn(uri=MANAGE_RESOURCE_PREFIX + "entry", fn=self.knowledge_base_client.get)
+        Returns:
+            KnowledgeBase: The knowledge base object corresponding to the provided name.
+        """
+        return await self.knowledge_base_client.get_by_name(name=name)
 
-    async def async_init(self):
-        pass
+    @mcp_tool()
+    async def delete(self, name: str = NAME_FIELD) -> None:
+        """Delete a knowledge base by its name."""
+        await self.knowledge_base_client.delete_by_name(name=name)
 
-    async def async_shutdown(self):
-        pass
+    @mcp_tool()
+    async def update(
+        self, name: str = NAME_FIELD, knowledge_base_update: KnowledgeBaseUpdateProto = KNOWLEDGE_BASE_UPDATE_PROTO_FIELD
+    ) -> None:
+        """Update the description of an existing knowledge base by its name."""
+        await self.knowledge_base_client.update_by_name(name=name, knowledge_base_update=knowledge_base_update)

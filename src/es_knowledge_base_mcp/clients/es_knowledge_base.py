@@ -1,50 +1,52 @@
 """Elasticsearch client for managing and searching knowledge bases."""
 
-from async_lru import alru_cache
-from typing import TYPE_CHECKING, Any
 import uuid
-from copy import deepcopy
-from elasticsearch import AsyncElasticsearch
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from datetime import datetime
+from copy import deepcopy
+from datetime import UTC, datetime
+from typing import Any
 
-from elasticsearch import NotFoundError, ApiError, ConflictError
-
+from elasticsearch import (
+    ApiError,
+    AsyncElasticsearch,
+    AuthenticationException,
+    AuthorizationException,
+    ConflictError,
+    ConnectionError,  # noqa: A004
+    NotFoundError,
+)
 from fastmcp.utilities.logging import get_logger
-from es_knowledge_base_mcp.models.constants import CRAWLER_INDEX_MAPPING
-from es_knowledge_base_mcp.models.settings import KnowledgeBaseServerSettings
+
 from es_knowledge_base_mcp.errors.knowledge_base import (
-    KnowledgeBaseError,
-    KnowledgeBaseNotFoundError,
     KnowledgeBaseAlreadyExistsError,
     KnowledgeBaseCreationError,
     KnowledgeBaseDeletionError,
-    KnowledgeBaseUpdateError,
+    KnowledgeBaseError,
+    KnowledgeBaseNotFoundError,
     KnowledgeBaseRetrievalError,
     KnowledgeBaseSearchError,
+    KnowledgeBaseUpdateError,
 )
 from es_knowledge_base_mcp.interfaces.knowledge_base import (
     KnowledgeBase,
     KnowledgeBaseClient,
     KnowledgeBaseCreateProto,
+    KnowledgeBaseDocument,
+    KnowledgeBaseDocumentProto,
+    KnowledgeBaseSearchResult,
     KnowledgeBaseSearchResultError,
     KnowledgeBaseSearchResultTypes,
     KnowledgeBaseUpdateProto,
-    KnowledgeBaseSearchResult,
-    KnowledgeBaseDocument,
-    KnowledgeBaseDocumentProto,
     PerKnowledgeBaseSummary,
 )
-
-from elasticsearch import AuthenticationException, AuthorizationException, ConnectionError
-
+from es_knowledge_base_mcp.models.constants import CRAWLER_INDEX_MAPPING
+from es_knowledge_base_mcp.models.settings import KnowledgeBaseServerSettings
 
 logger = get_logger("knowledge-base-mcp.elasticsearch")
 
 # endregion Index Handling
 
-if TYPE_CHECKING:
-    pass
 
 logger = get_logger("knowledge-base-mcp.knowledge-base")
 
@@ -76,8 +78,8 @@ class ElasticsearchAuthorizationError(ElasticsearchError):
 
 
 class ElasticsearchKnowledgeBaseClient(KnowledgeBaseClient):
-    """
-    Elasticsearch implementation of the KnowledgeBaseClient protocol.
+    """Elasticsearch implementation of the KnowledgeBaseClient protocol.
+
     Handles the logic for managing and searching knowledge bases via Elasticsearch.
     """
 
@@ -86,27 +88,33 @@ class ElasticsearchKnowledgeBaseClient(KnowledgeBaseClient):
 
     elasticsearch_client: AsyncElasticsearch
 
-    def __init__(self, settings: KnowledgeBaseServerSettings, elasticsearch_client: AsyncElasticsearch):
+    def __init__(self, settings: KnowledgeBaseServerSettings, elasticsearch_client: AsyncElasticsearch) -> None:
+        """Initialize the ElasticsearchKnowledgeBaseClient."""
         self.index_prefix = settings.base_index_prefix
         self.index_pattern = settings.base_index_pattern
 
         self.elasticsearch_client = elasticsearch_client
 
-        self._last_cache_bust = datetime.now()
-
-    async def async_init(self):
-        pass
-
-    async def async_shutdown(self):
-        await self.elasticsearch_client.close()
+        self._last_cache_bust = datetime.now(tz=UTC)
 
     # region Error Handling
-    @asynccontextmanager
-    async def connection_context_manager(self):
-        """Context manager for Elasticsearch connection errors."""
 
+    @classmethod
+    @asynccontextmanager
+    async def connection_context_manager(cls, elasticsearch_client: AsyncElasticsearch) -> AsyncGenerator[AsyncElasticsearch, None]:
+        """Context manager for Elasticsearch connection errors.
+
+        Yields:
+            AsyncElasticsearch: The Elasticsearch client to use within the context.
+
+        Raises:
+            ElasticsearchAuthenticationError: If authentication fails.
+            ElasticsearchAuthorizationError: If authorization fails.
+            ElasticsearchConnectionError: If connection to Elasticsearch fails.
+            ElasticsearchError: For any other unexpected errors.
+        """
         try:
-            yield
+            yield elasticsearch_client
         except AuthenticationException as e:
             err_text = "Authentication failed for Elasticsearch."
             logger.exception(err_text)
@@ -123,86 +131,94 @@ class ElasticsearchKnowledgeBaseClient(KnowledgeBaseClient):
             err_text = "Unknown error connecting to Elasticsearch."
             logger.exception(err_text)
             raise ElasticsearchError(err_text) from e
+        finally:
+            await elasticsearch_client.close()
 
         logger.debug("Elasticsearch connection established successfully.")
 
     @asynccontextmanager
-    async def error_handler(self, operation: str):
-        """Context manager for Elasticsearch client."""
+    async def error_handler(self, operation: str) -> AsyncGenerator[None, None]:  # noqa: C901, PLR0912
+        """Context manager for Elasticsearch client.
 
-        logger.debug(f"Attempting {operation}.")
+        Raises:
+            KnowledgeBaseNotFoundError: If a knowledge base is not found.
+            KnowledgeBaseAlreadyExistsError: If a knowledge base already exists.
+            KnowledgeBaseCreationError: If there is an error creating a knowledge base.
+            KnowledgeBaseDeletionError: If there is an error deleting a knowledge base.
+            KnowledgeBaseRetrievalError: If there is an error retrieving a knowledge base.
+            KnowledgeBaseSearchError: If there is an error searching a knowledge base.
+            KnowledgeBaseUpdateError: If there is an error updating a knowledge base.
+            KnowledgeBaseError: For general knowledge base errors.
+            ElasticsearchError: For any other unexpected errors.
+        """
+        msg = f"Starting operation: {operation}"
+        logger.debug(msg)
 
         try:
             yield
 
         except NotFoundError as e:
-            err_text = f"Not found error while {operation}"
-            logger.exception(err_text)
-            raise KnowledgeBaseNotFoundError(err_text) from e
+            error_message = f"Not found error while {operation}"
+            logger.exception(error_message)
+            raise KnowledgeBaseNotFoundError(error_message) from e
         except ConflictError as e:
-            err_text = f"Conflict error while {operation}"
-            logger.exception(err_text)
-            raise KnowledgeBaseAlreadyExistsError(err_text) from e
+            error_message = f"Conflict error while {operation}"
+            logger.exception(error_message)
+            raise KnowledgeBaseAlreadyExistsError(error_message) from e
         except ApiError as e:
-            err_text = f"Elasticsearch API error while {operation}: {e}"
-            logger.exception(err_text)
+            error_message = f"Elasticsearch API error while {operation}: {e}"
+            logger.exception(error_message)
             # Differentiate between update and other API errors if needed, for now general
             if "update" in operation.lower():
-                raise KnowledgeBaseUpdateError(err_text) from e
+                raise KnowledgeBaseUpdateError(error_message) from e
             elif "create" in operation.lower():
-                raise KnowledgeBaseCreationError(err_text) from e
+                raise KnowledgeBaseCreationError(error_message) from e
             elif "delete" in operation.lower():
-                raise KnowledgeBaseDeletionError(err_text) from e
+                raise KnowledgeBaseDeletionError(error_message) from e
             elif "search" in operation.lower():
-                raise KnowledgeBaseSearchError(err_text) from e
+                raise KnowledgeBaseSearchError(error_message) from e
             elif "get" in operation.lower():
-                raise KnowledgeBaseRetrievalError(err_text) from e
+                raise KnowledgeBaseRetrievalError(error_message) from e
             else:
-                raise ElasticsearchError(err_text) from e
+                raise ElasticsearchError(error_message) from e
 
         except Exception as e:
-            err_text = f"Unexpected error while {operation}."
-            logger.exception(err_text)
+            error_message = f"Unexpected error while {operation}."
+            logger.exception(error_message)
             # Catch-all for other unexpected errors, map to appropriate KB error
             if "update" in operation.lower():
-                raise KnowledgeBaseUpdateError(err_text) from e
+                raise KnowledgeBaseUpdateError(error_message) from e
             elif "create" in operation.lower():
-                raise KnowledgeBaseCreationError(err_text) from e
+                raise KnowledgeBaseCreationError(error_message) from e
             elif "delete" in operation.lower():
-                raise KnowledgeBaseDeletionError(err_text) from e
+                raise KnowledgeBaseDeletionError(error_message) from e
             elif "search" in operation.lower():
-                raise KnowledgeBaseSearchError(err_text) from e
+                raise KnowledgeBaseSearchError(error_message) from e
             elif "get" in operation.lower():
-                raise KnowledgeBaseRetrievalError(err_text) from e
+                raise KnowledgeBaseRetrievalError(error_message) from e
             else:
-                raise KnowledgeBaseError(err_text) from e
+                raise KnowledgeBaseError(error_message) from e
 
-        logger.debug(f"Completed {operation}.")
+        msg = f"Operation {operation} completed successfully."
+        logger.debug(msg)
 
     # endregion Error Handling
 
     # region Get KBs
 
     async def get(self) -> list[KnowledgeBase]:
-        """Get a list of all knowledge bases."""
-        knowledge_bases = await self._get()
+        """Get a list of all knowledge bases.
 
-        return sorted(knowledge_bases, key=lambda kb: kb.name.lower())
-
-    @alru_cache(maxsize=1)
-    async def _get(self) -> list[KnowledgeBase]:
-        """Get a list of all knowledge bases. This requires querying the Elasticsearch indices and _cat to get doc counts.
+        This requires querying the Elasticsearch indices and _cat to get doc counts.
 
         Returns:
             list[KnowledgeBase]: A list of KnowledgeBase objects representing the knowledge bases found in Elasticsearch.
         """
-
         async with self.error_handler("getting knowledge base indices"):
             indices_get_response = await self.elasticsearch_client.indices.get_mapping(index=self.index_pattern, allow_no_indices=True)
 
         if not indices_get_response.body or len(indices_get_response.body) == 0:
             logger.debug("No knowledge base indices found.")
-            self._bust_caches()
             return []
 
         kb_name_to_metadata: dict[str, dict[str, Any]] = {
@@ -212,7 +228,7 @@ class ElasticsearchKnowledgeBaseClient(KnowledgeBaseClient):
 
         index_to_doc_counts: dict[str, int] = await self._get_doc_counts()
 
-        return [
+        knowledge_bases = [
             KnowledgeBase(
                 name=metadata.get("name", "<Not Set>"),
                 description=metadata.get("description", "<Not Set>"),
@@ -224,14 +240,16 @@ class ElasticsearchKnowledgeBaseClient(KnowledgeBaseClient):
             for index, metadata in kb_name_to_metadata.items()
         ]
 
-    @alru_cache(maxsize=1)
+        return sorted(knowledge_bases, key=lambda kb: (kb.name.lower()))
+
     async def _get_doc_counts(self) -> dict[str, int]:
         """Get document counts for a list of indices.
 
         Uses the cat.indices API to retrieve document counts for the specified indices.
-        Returns a dictionary mapping index names to their document counts.
-        """
 
+        Returns:
+            dict[str, int]: A dictionary where keys are index names and values are document counts.
+        """
         async with self.error_handler("getting document counts for indices"):
             cat_response = await self.elasticsearch_client.options(ignore_status=404).cat.indices(
                 index=self.index_pattern, format="json", h=["index", "docs.count"]
@@ -248,17 +266,26 @@ class ElasticsearchKnowledgeBaseClient(KnowledgeBaseClient):
     # region Create / Update KBs
 
     async def create(self, knowledge_base_create_proto: KnowledgeBaseCreateProto) -> KnowledgeBase:
-        """Create a new knowledge base."""
+        """Create a new knowledge base.
 
+        This method checks if a knowledge base with the same name already exists, and if not, creates a new Knowledge Base.
+
+        Returns:
+            KnowledgeBase: The created knowledge base object.
+
+        Raises:
+            KnowledgeBaseAlreadyExistsError: If a knowledge base with the same name already exists.
+        """
         current_kbs = await self.get()
         if any(kb.name == knowledge_base_create_proto.name for kb in current_kbs):
-            raise KnowledgeBaseAlreadyExistsError(f"Knowledge base with name '{knowledge_base_create_proto.name}' already exists.")
+            msg = f"Knowledge base with name '{knowledge_base_create_proto.name}' already exists."
+            raise KnowledgeBaseAlreadyExistsError(msg)
 
         id_prefix = self.index_prefix + "-" + knowledge_base_create_proto.type
-        id = self._url_to_index_name(knowledge_base_create_proto.data_source)
+        id_middle: str = self._url_to_index_name(knowledge_base_create_proto.data_source)
         id_suffix = str(uuid.uuid4())[:8]
 
-        index_name = f"{id_prefix}.{id}-{id_suffix}"
+        index_name = f"{id_prefix}.{id_middle}-{id_suffix}"
 
         index_mappings = deepcopy(x=CRAWLER_INDEX_MAPPING)
 
@@ -269,8 +296,6 @@ class ElasticsearchKnowledgeBaseClient(KnowledgeBaseClient):
         async with self.error_handler(f"creating knowledge base index '{index_name}' and mappings {index_mappings}"):
             await self.elasticsearch_client.indices.create(index=index_name, mappings=index_mappings)
 
-        self._bust_caches(debounce=0)
-
         return KnowledgeBase(
             name=knowledge_base_create_proto.name,
             type=knowledge_base_create_proto.type,
@@ -280,7 +305,7 @@ class ElasticsearchKnowledgeBaseClient(KnowledgeBaseClient):
             doc_count=0,
         )
 
-    async def update(self, knowledge_base: KnowledgeBase, knowledge_base_update: KnowledgeBaseUpdateProto):
+    async def update(self, knowledge_base: KnowledgeBase, knowledge_base_update: KnowledgeBaseUpdateProto) -> None:
         """Update editable fields of an existing knowledge base."""
         index_name = knowledge_base.backend_id
 
@@ -298,8 +323,6 @@ class ElasticsearchKnowledgeBaseClient(KnowledgeBaseClient):
         async with self.error_handler(f"updating knowledge base metadata for '{index_name}'"):
             await self.elasticsearch_client.indices.put_mapping(index=index_name, **mapping_update)
 
-        self._bust_caches(debounce=0)
-
     # endregion Create / Update KBs
 
     # region Delete KBs
@@ -308,24 +331,14 @@ class ElasticsearchKnowledgeBaseClient(KnowledgeBaseClient):
         async with self.error_handler(f"deleting knowledge base '{knowledge_base.backend_id}'"):
             await self.elasticsearch_client.indices.delete(index=knowledge_base.backend_id)
 
-        self._bust_caches(debounce=0)
-
     # endregion Delete KBs
 
-    # region Search KBs
-    # async def search_all(self, phrases: list[str], results: int = 5, fragments: int = 5) -> list[KnowledgeBaseSearchResultTypes]:
-    #     """Search across all knowledge bases.
-    #     Args:
-    #         phrases (list[str]): List of phrases to search for across all knowledge bases.
-    #         results (int): Number of search results to return for each phrase.
-    #         fragments (int): Number of content fragments to return for each search result.
-    #     """
-
-    #     return await self._search_by_indices(phrases=phrases, indices=[self.index_pattern], results=results, fragments=fragments)
-
     async def search(self, phrases: list[str], results: int = 5, fragments: int = 5) -> list[KnowledgeBaseSearchResultTypes]:
-        """Search within a specific knowledge base."""
+        """Search within a specific knowledge base.
 
+        Returns:
+            list[KnowledgeBaseSearchResultTypes]: A list of search results containing the phrase, results, and summaries.
+        """
         return await self._search_by_knowledge_base_names(
             phrases=phrases,
             knowledge_base_names=[],
@@ -336,8 +349,11 @@ class ElasticsearchKnowledgeBaseClient(KnowledgeBaseClient):
     async def search_by_name(
         self, knowledge_base_names: list[str], phrases: list[str], results: int = 5, fragments: int = 5
     ) -> list[KnowledgeBaseSearchResultTypes]:
-        """Search within a specific knowledge base."""
+        """Search within a specific knowledge base.
 
+        Returns:
+            list[KnowledgeBaseSearchResultTypes]: A list of search results containing the phrase, results, and summaries.
+        """
         return await self._search_by_knowledge_base_names(
             phrases=phrases,
             knowledge_base_names=knowledge_base_names,
@@ -346,7 +362,11 @@ class ElasticsearchKnowledgeBaseClient(KnowledgeBaseClient):
         )
 
     async def get_recent_documents(self, knowledge_base: KnowledgeBase, results: int = 5) -> list[KnowledgeBaseDocument]:
-        """Get the most recent documents from a specific knowledge base."""
+        """Get the most recent documents from a specific knowledge base.
+
+        Returns:
+            list[KnowledgeBaseDocument]: A list of the most recent documents.
+        """
         index_name = knowledge_base.backend_id
 
         async with self.error_handler("multi-search operation"):
@@ -359,15 +379,19 @@ class ElasticsearchKnowledgeBaseClient(KnowledgeBaseClient):
             )
 
         if not search_response or not search_response.body or "hits" not in search_response.body:
-            logger.warning(f"No recent documents found in knowledge base '{knowledge_base.name}' ({index_name}).")
+            msg = f"No recent documents found in knowledge base '{knowledge_base.name}' ({index_name})."
+            logger.warning(msg)
             return []
 
         return [self._hit_to_document(hit=hit) for hit in search_response.body["hits"].get("hits", [])]
 
     @classmethod
     def _phrase_to_query(cls, phrase: str, knowledge_base_names: list[str], size: int = 5, fragments: int = 5) -> dict[str, Any]:
-        """Convert phrase to queries."""
+        """Convert phrase to queries.
 
+        Returns:
+            dict[str, Any]: The Elasticsearch query dictionary.
+        """
         knowledge_base_match = {"terms": {"knowledge_base_name": knowledge_base_names}} if knowledge_base_names else {"match_all": {}}
         heading_match = {"match": {"headings": {"query": phrase, "boost": 1}}}
         semantic_match = {"semantic": {"field": "body", "query": phrase, "boost": 5}}
@@ -385,19 +409,25 @@ class ElasticsearchKnowledgeBaseClient(KnowledgeBaseClient):
     async def _search_by_knowledge_base_names(
         self, phrases: list[str], knowledge_base_names: list[str], results: int = 5, fragments: int = 5
     ) -> list[KnowledgeBaseSearchResultTypes]:
-        """Search across specific indices."""
+        """Search across specific indices.
 
+        Returns:
+            list[KnowledgeBaseSearchResultTypes]: A list of search results containing the phrase, results, and summaries.
+        """
         operations = []
 
         for phrase in phrases:
-            operations.append({"index": self.index_pattern})
-            operations.append(self._phrase_to_query(phrase, knowledge_base_names=knowledge_base_names, size=results, fragments=fragments))
+            operations.extend((
+                {"index": self.index_pattern},
+                self._phrase_to_query(phrase, knowledge_base_names=knowledge_base_names, size=results, fragments=fragments),
+            ))
 
         async with self.error_handler("multi-search operation"):
             msearch_results = await self.elasticsearch_client.msearch(searches=operations)
 
         if not msearch_results or "responses" not in msearch_results:
-            logger.warning("No results returned from multi-search operation.")
+            msg = "No results returned from multi-search operation."
+            logger.warning(msg)
             return []
 
         search_results: list[KnowledgeBaseSearchResultTypes] = []
@@ -406,8 +436,9 @@ class ElasticsearchKnowledgeBaseClient(KnowledgeBaseClient):
             phrase = phrases[i]
 
             if not response.get("hits", {}).get("hits"):
-                search_results.append(KnowledgeBaseSearchResultError(phrase=phrase, error="No hits found in one of the search responses."))
-                logger.warning("No hits found in one of the search responses.")
+                error_message = "No hits found in one of the search responses."
+                search_results.append(KnowledgeBaseSearchResultError(phrase=phrase, error=error_message))
+                logger.warning(error_message)
                 continue
 
             summaries: list[PerKnowledgeBaseSummary] = [
@@ -434,8 +465,11 @@ class ElasticsearchKnowledgeBaseClient(KnowledgeBaseClient):
 
     @classmethod
     def _hit_to_document(cls, hit: dict[str, Any]) -> KnowledgeBaseDocument:
-        """Convert an Elasticsearch hit to a KnowledgeBaseDocument."""
+        """Convert an Elasticsearch hit to a KnowledgeBaseDocument.
 
+        Returns:
+            KnowledgeBaseDocument: The converted document object.
+        """
         doc_id = hit.get("_id", "")
 
         highlights = hit.get("highlight", {}).get("body", [])
@@ -467,30 +501,35 @@ class ElasticsearchKnowledgeBaseClient(KnowledgeBaseClient):
     async def insert_documents(self, knowledge_base: KnowledgeBase, documents: list[KnowledgeBaseDocumentProto]) -> None:
         """Add multiple documents to a specific knowledge base.
 
-        Use _bulk API to insert requested documents into the knowledge base index.
+        Uses _bulk API to insert requested documents into the knowledge base index.
+
+        Raises:
+            KnowledgeBaseError: If there is an error inserting documents.
         """
         index_name = knowledge_base.backend_id
         operations = []
 
-        now = int(round(datetime.now().timestamp() * 1000))
+        now = round(datetime.now(tz=UTC).timestamp() * 1000)
 
         for document_proto in documents:
-            operations.append({"index": {"_index": index_name}})
-            operations.append({"@timestamp": now, "title": document_proto.title, "body": document_proto.content})
+            operations.extend((
+                {"index": {"_index": index_name}},
+                {"@timestamp": now, "title": document_proto.title, "body": document_proto.content},
+            ))
 
         if not operations:
-            logger.warning(f"Requested to insert documents into knowledge base '{knowledge_base.name}', but no documents provided.")
+            msg = f"Requested to insert documents into knowledge base '{knowledge_base.name}', but no documents provided."
+            logger.warning(msg)
             return
 
         async with self.error_handler(f"inserting documents into knowledge base '{knowledge_base.name} ({index_name})'"):
             result = await self.elasticsearch_client.bulk(operations=operations)
 
-        if result.get("errors", False):
-            raise KnowledgeBaseError(
+        if result and result.get("errors", False):
+            error_message = (
                 f"Failed to insert documents into knowledge base '{knowledge_base.name} ({index_name})': {result.get('items', [])}"
             )
-
-        self._bust_caches(debounce=3)
+            raise KnowledgeBaseError(error_message)
 
     # endregion Insert Documents
 
@@ -502,8 +541,6 @@ class ElasticsearchKnowledgeBaseClient(KnowledgeBaseClient):
         async with self.error_handler(f"updating document {document_id} in knowledge base '{knowledge_base.name} ({index_name})'"):
             await self.elasticsearch_client.update(index=index_name, id=document_id, doc=document_update.model_dump())
 
-        self._bust_caches(debounce=3)
-
     # endregion Update Documents
 
     # region Delete Documents
@@ -514,39 +551,15 @@ class ElasticsearchKnowledgeBaseClient(KnowledgeBaseClient):
         async with self.error_handler(f"deleting document {document_id} from knowledge base '{knowledge_base.name} ({index_name})'"):
             await self.elasticsearch_client.delete(index=index_name, id=document_id)
 
-        self._bust_caches(debounce=3)
-
     # endregion Delete Documents
-
-    async def _index_to_kb_name(self, index: str) -> str:
-        """Convert an index name to a knowledge base name."""
-
-        kbs = await self.get()
-
-        for kb in kbs:
-            if kb.backend_id == index:
-                return kb.name
-
-        # If no knowledge base found with the given index, we should
-        self._bust_caches(debounce=HITS_CACHE_BUST_INTERVAL)
-
-        raise KnowledgeBaseNotFoundError(f"Knowledge base with index '{index}' not found.")
-
-    def _bust_caches(self, debounce=0):
-        """Reset the LRU cache for document counts."""
-
-        if debounce == 0:
-            self._last_cache_bust = datetime.now()
-        elif (datetime.now() - self._last_cache_bust).total_seconds() < debounce:
-            logger.debug(f"Client requested debounce for cache bust, there was a recent bust, skipping for {debounce} seconds.")
-            return
-
-        logger.debug("Busting caches for ElasticsearchKnowledgeBaseClient.")
-        self._get_doc_counts.cache_invalidate()
-        self._get.cache_invalidate()
 
     @classmethod
     def _url_to_index_name(cls, url: str) -> str:
+        """Convert URL to a valid Elasticsearch index name.
+
+        Returns:
+            str: The converted index name.
+        """
         # Convert URL to a valid index name
         # We can have 256 characters of lowercase alphanumeric characters, underscores, hyphens and periods
 
@@ -555,16 +568,19 @@ class ElasticsearchKnowledgeBaseClient(KnowledgeBaseClient):
         # so we replace dots with underscores
         # slashes with dots
         # strip all other characters
-        id = url.replace("https://", "").replace("http://", "").replace(".", "_").replace("/", ".").replace("-", "_")
-        id = "".join(c for c in id if c.isalnum() or c in ["_", "-", "."])
+        new_index_name = url.replace("https://", "").replace("http://", "").replace(".", "_").replace("/", ".").replace("-", "_")
+        new_index_name = "".join(c for c in new_index_name if c.isalnum() or c in {"_", "-", "."})
         # trim off any leading or trailing dashes, underscores, or periods
 
-        return id[:50].strip("-_.").lower()
+        return new_index_name[:50].strip("-_.").lower()
 
     @classmethod
     def _insert_runtime_kb_name(cls, index_mappings: dict[str, Any], kb_name: str) -> dict[str, Any]:
-        """Insert a runtime mapping value into the given mapping."""
+        """Insert a runtime mapping value into the given mapping.
 
+        Returns:
+            dict[str, Any]: The updated index mappings with the runtime field.
+        """
         escaped_value = kb_name.replace('"', '\\"')
 
         return index_mappings | {
@@ -580,7 +596,11 @@ class ElasticsearchKnowledgeBaseClient(KnowledgeBaseClient):
 
     @classmethod
     def _insert_metadata(cls, index_mappings: dict[str, Any], knowledge_base_create_proto: KnowledgeBaseCreateProto) -> dict[str, Any]:
-        """Builds the Elasticsearch _meta mapping from a KnowledgeBaseCreateProto."""
+        """Build the Elasticsearch _meta mapping from a KnowledgeBaseCreateProto.
+
+        Returns:
+            dict[str, Any]: The updated index mappings with the metadata.
+        """
         return index_mappings | {
             "_meta": {
                 "knowledge_base": {

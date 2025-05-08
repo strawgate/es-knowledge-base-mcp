@@ -1,6 +1,7 @@
 """Base models and utilities for data structures."""
 
 from typing import Any
+
 from pydantic import BaseModel, ConfigDict
 
 

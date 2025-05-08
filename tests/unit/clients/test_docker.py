@@ -1,5 +1,7 @@
-import pytest
 import tarfile
+
+import pytest
+
 from es_knowledge_base_mcp.clients.docker import InjectFile
 
 

@@ -48,12 +48,46 @@ packages = [
     { include = "es_knowledge_base_mcp", from = "src" },
 ]
 
-[tool.poetry.group.dev.dependencies]
-ruff = "^0.11.5"
-requests-mock = "^1.12.1"
-pytest-asyncio = "^0.26.0"
-syrupy = "^4.9.1"
-
 [tool.ruff]
 line-length = 140
+target-version = "py312"
+respect-gitignore = true
+extend-exclude = [
+    ".git",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".venv",
+    "venv",
+    "__pycache__",
+    "**/__pycache__/**",
+    "build",
+    "dist",
+    "reference"
+]
 
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "D203", # incorrect-blank-line-before-class
+    "D213",  # multi-line-summary-second-line
+    "D413",  # missing-blank-line-after-last-section
+    "COM812", # dunno
+    "FBT001", # bool params
+    "FBT002", # bool params
+    "PLR6301", # unused Self
+    "B008", # Function call in params
+    "CPY001", # No copyright header
+    "TRY003", # long strings outside exceptions class
+    "PGH003", # Require specific exclusions
+]
+
+fixable = ["ALL"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.isort]
+known-first-party = ["es_knowledge_base_mcp"]
+section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
