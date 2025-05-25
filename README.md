@@ -7,8 +7,6 @@ This MCP server empowers your AI Assistant to ASK, LEARN, and REMEMBER:
 *   **LEARN**: Obtain and index entire documentation stores (e.x. every word of every page of https://docs.pytest.org/en/stable/contents.html) from the Web, git repositories, or the local filesystem.
 *   **REMEMBER**: Store working information, user preferences, and rules as "memories" for future reference.
 
-Internally, the server uses a `KnowledgeBaseClient` protocol to abstract interactions with the knowledge base backend, allowing for potential future flexibility. The current implementation uses Elasticsearch.
-
 This MCP Server is powered by [Elasticsearch Serverless Search (Start a free trial)](https://www.elastic.co/guide/en/serverless/current/what-is-elasticsearch-serverless.html) for inference, and vector search, and [Elastic Crawler](https://github.com/elastic/crawler) for crawling, parsing, and indexing.
 
 ## Benefits
@@ -82,7 +80,7 @@ The recommended way to run this server is using `uvx`, which handles fetching an
 Add the following configuration block to your `mcpServers` object:
 
 ```json
-  "es_knowledge_base_mcp_debug": {
+  "Knowledge Base": {
       "command": "uvx",
       "args": [
         "git+https://github.com/strawgate/es-knowledge-base-mcp"
@@ -95,28 +93,7 @@ Add the following configuration block to your `mcpServers` object:
         "ES_USERNAME": "YOUR_ELASTICSEARCH_USERNAME",
         "ES_PASSWORD": "YOUR_ELASTICSEARCH_PASSWORD",
       },
-      "alwaysAllow": [
-        "knowledge_base_create",
-        "knowledge_base_get",
-        "knowledge_base_get_by_backend_id",
-        "knowledge_base_get_by_name",
-        "knowledge_base_delete_by_backend_id",
-        "knowledge_base_delete_by_name",
-        "knowledge_base_update_by_backend_id",
-        "knowledge_base_update_by_name",
-        "memory_encodings",
-        "memory_encoding",
-        "memory_recall",
-        "memory_recall_last",
-        "ask_questions",
-        "ask_questions_for_kb",
-        "learn_extract_urls_from_webpage",
-        "learn_from_web_documentation",
-        "learn_active_documentation_requests",
-        "fetch_webpage",
-        "call_tool_bulk",
-        "call_tools_bulk"
-      ],
+      "alwaysAllow": [],
       "disabled": false
     }
 ```
