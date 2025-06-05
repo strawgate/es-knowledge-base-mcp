@@ -13,7 +13,7 @@ from es_knowledge_base_mcp.errors.crawler import (
 
 
 @pytest.mark.parametrize(
-    "url, expected_params",
+    ("url", "expected_params"),
     [
         (
             "http://example.com/docs/file.html",
@@ -63,7 +63,7 @@ def test_derive_crawl_params(url, expected_params):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "mock_extract_return, expected_exception, limit_override",  # Update parameter name
+    ("mock_extract_return", "expected_exception", "limit_override"),  # Update parameter name
     [
         # Original test cases, updated for new return structure
         ({"page_is_noindex": False, "page_is_nofollow": False, "urls_to_crawl": ["url1", "url2"], "skipped_urls": []}, None, None),
@@ -131,7 +131,7 @@ async def test_validate_crawl(mock_extract_urls, mock_extract_return, expected_e
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "domain, seed_url, filter_pattern, index_name, es_settings",
+    ("domain", "seed_url", "filter_pattern", "index_name", "es_settings"),
     [
         ("http://example.com", "http://example.com/start", "/start.*", "test_index", {"host": "localhost", "port": 9200}),
         ("http://example.com", "http://example.com/start", "", "test_index", {"host": "localhost", "port": 9200}),

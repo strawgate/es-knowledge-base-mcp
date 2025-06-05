@@ -38,7 +38,13 @@ async def test_extract_urls_from_webpage():
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "html_content, expected_urls_to_crawl, expected_skipped_urls, expected_noindex, expected_nofollow",  # Add expected values for new return
+    (
+        "html_content",
+        "expected_urls_to_crawl",
+        "expected_skipped_urls",
+        "expected_noindex",
+        "expected_nofollow",
+    ),  # Add expected values for new return
     [
         (
             """
@@ -65,7 +71,7 @@ async def test_extract_urls_from_webpage():
             </body>
             </html>
             """,
-            sorted(list(set(["http://example.com/page1", "http://example.com/page2"]))),
+            sorted({"http://example.com/page1", "http://example.com/page2"}),
             [],
             False,
             False,
@@ -81,7 +87,7 @@ async def test_extract_urls_from_webpage():
             </body>
             </html>
             """,
-            sorted(list(set(["http://example.com/page1"]))),
+            sorted({"http://example.com/page1"}),
             [],
             False,
             False,

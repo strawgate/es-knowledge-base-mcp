@@ -6,7 +6,7 @@ from es_knowledge_base_mcp.clients.docker import InjectFile
 
 
 @pytest.mark.parametrize(
-    "filename, content, expected_filename_in_tar",
+    ("filename", "content", "expected_filename_in_tar"),
     [
         ("test_file.txt", "hello world", "test_file.txt"),
         ("/config/file.yml", "key: value", "config/file.yml"),

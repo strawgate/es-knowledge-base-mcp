@@ -34,7 +34,7 @@ async def extract_urls_from_webpage(url: str, domain_filter: str | None = None, 
         ["http://example.com/page1", "http://example.com/page2"]
 
     """
-    response = requests.get(url)
+    response = requests.get(url, timeout=10)
     response.raise_for_status()
     soup = BeautifulSoup(response.content, "html.parser")
 
@@ -89,6 +89,6 @@ async def extract_urls_from_webpage(url: str, domain_filter: str | None = None, 
     return {
         "page_is_noindex": page_is_noindex,
         "page_is_nofollow": page_is_nofollow,
-        "urls_to_crawl": sorted(list(urls_to_crawl)),
-        "skipped_urls": sorted(list(skipped_urls)),
+        "urls_to_crawl": sorted(urls_to_crawl),
+        "skipped_urls": sorted(skipped_urls),
     }

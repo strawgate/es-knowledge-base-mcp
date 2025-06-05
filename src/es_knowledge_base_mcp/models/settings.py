@@ -7,6 +7,7 @@ from typing import Any, Literal, Self
 from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from es_knowledge_base_mcp.errors.server import InvalidSettingError
 from es_knowledge_base_mcp.models.constants import BASE_LOGGER_NAME
 
 logger = logging.getLogger(BASE_LOGGER_NAME)
@@ -77,7 +78,7 @@ class ElasticsearchSettings(BaseElasticsearchSettings):
     )
 
     request_timeout: int = Field(
-        default=600,
+        default=300,
         alias="es_request_timeout",
         description="Request timeout for Elasticsearch operations in seconds.",
     )
@@ -103,11 +104,11 @@ class ElasticsearchSettings(BaseElasticsearchSettings):
     def validate_authentication(self) -> Self:
         """Validate that only one authentication method is set."""
         if self.api_key and (self.username or self.password):
-            raise ValueError("Cannot use both API key and basic authentication.")
+            raise InvalidSettingError(setting="es_api_key", error="Cannot use both API key and basic authentication.")
         if self.username and not self.password:
-            raise ValueError("Username requires a password.")
+            raise InvalidSettingError(setting="es_username", error="Username requires a password.")
         if self.password and not self.username:
-            raise ValueError("Password requires a username.")
+            raise InvalidSettingError(setting="es_password", error="Password requires a username.")
         return self
 
     def _get_auth_dict(self) -> dict[str, Any]:
@@ -127,7 +128,7 @@ class ElasticsearchSettings(BaseElasticsearchSettings):
         return auth_dict
 
     def to_client_settings(self) -> dict[str, Any]:
-        settings = {
+        return {
             "hosts": [self.host],
             "request_timeout": self.request_timeout,
             "http_compress": True,
@@ -137,10 +138,8 @@ class ElasticsearchSettings(BaseElasticsearchSettings):
             **self._get_auth_dict(),
         }
 
-        return settings
-
     def to_crawler_settings(self) -> dict[str, Any]:
-        settings = {
+        return {
             "host": self.host,
             "request_timeout": self.request_timeout,
             "bulk_api": {
@@ -149,8 +148,6 @@ class ElasticsearchSettings(BaseElasticsearchSettings):
             },
             **self._get_auth_dict(),
         }
-
-        return settings
 
 
 class KnowledgeBaseServerSettings(BaseElasticsearchSettings):

@@ -4,7 +4,7 @@ from es_knowledge_base_mcp.clients.es_knowledge_base import ElasticsearchKnowled
 
 
 @pytest.mark.parametrize(
-    "url, expected_index_name",
+    ("url", "expected_index_name"),
     [
         ("http://www.python.org/docs/index.html", "www_python_org.docs.index_html"),
         ("https://www.python.org/docs/index.html", "www_python_org.docs.index_html"),
@@ -30,8 +30,7 @@ from es_knowledge_base_mcp.clients.es_knowledge_base import ElasticsearchKnowled
     ],
 )
 def test_url_to_index_name(url: str, expected_index_name: str):
-    """Tests the url_to_index_name function with various inputs.
-    """
+    """Tests the url_to_index_name function with various inputs."""
     assert ElasticsearchKnowledgeBaseClient._url_to_index_name(url) == expected_index_name
 
 

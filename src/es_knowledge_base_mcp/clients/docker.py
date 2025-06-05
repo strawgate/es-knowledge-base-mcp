@@ -48,11 +48,11 @@ async def handle_errors(operation: str) -> AsyncIterator[None]:
 
     try:
         yield
-    except DockerError as e:
-        logger.error(f"Docker error during {operation}: {e}")
+    except DockerError:
+        logger.exception(f"Docker error during {operation}")
         raise
-    except Exception as e:
-        logger.error(f"Unexpected error during {operation}: {e}")
+    except Exception:
+        logger.exception(f"Unexpected error during {operation}")
         raise
 
     logger.debug(f"Completed {operation}.")
@@ -165,7 +165,7 @@ async def container_logs(docker_client: Docker, container_id: str) -> str:
 
 async def remove_container(docker_client: Docker, container_id: str) -> None:
     """Removes containers matching a label filter."""
-    logging.debug(f"Removing container '{container_id}'...")
+    logger.debug(f"Removing container '{container_id}'...")
 
     async with handle_errors("container removal"):
         container = await docker_client.containers.get(container_id)

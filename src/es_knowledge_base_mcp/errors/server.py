@@ -23,3 +23,14 @@ class ConfigurationError(KnowledgeBaseMCPBaseError):
     """Raised when there is a configuration error."""
 
     msg: str = "Unknown Configuration error"
+
+
+class InvalidSettingError(KnowledgeBaseMCPBaseError):
+    """Raised when a setting is invalid."""
+
+    msg: str = "Invalid setting"
+
+    def __init__(self, setting: str, error: str):
+        super().__init__(f"Invalid setting: {setting}: {error}")
+        self.setting = setting
+        self.error = error

@@ -21,10 +21,9 @@ from es_knowledge_base_mcp.errors.crawler import (
     CrawlerValidationNoIndexNofollowError,
     CrawlerValidationTooManyURLsError,
 )
-from es_knowledge_base_mcp.models.settings import CrawlerSettings
 
 if TYPE_CHECKING:
-    from es_knowledge_base_mcp.models.settings import ElasticsearchSettings
+    from es_knowledge_base_mcp.models.settings import CrawlerSettings, ElasticsearchSettings
 
 logger = get_logger("knowledge-base-mcp.crawl")
 
@@ -67,8 +66,9 @@ class Crawler:
         try:
             self.docker_client = Docker(url=self.docker_socket)
         except DockerError as e:
-            logger.error("Failed to initialize Docker client: %s", e)
-            raise CrawlerError(f"Failed to initialize Docker client: {e}") from e
+            msg = "Failed to initialize Docker client"
+            logger.exception(msg)
+            raise CrawlerError(message=msg) from e
 
         logger.debug("Docker client initialized.")
 
@@ -77,8 +77,9 @@ class Crawler:
         try:
             await self.docker_client.close()
         except Exception as e:
-            logger.error("Failed to close Docker client: %s", e)
-            raise CrawlerError(f"Failed to close Docker client: {e}") from e
+            msg = "Failed to close Docker client"
+            logger.exception(msg)
+            raise CrawlerError(message=msg) from e
 
     @asynccontextmanager
     async def handle_errors(self, operation: str = "Docker operation"):
@@ -86,13 +87,13 @@ class Crawler:
         try:
             yield
         except DockerError as e:
-            message = f"Docker {operation} failed: {e.message}"
-            logger.error(message)
-            raise CrawlerDockerError(message) from e
+            msg = f"Docker {operation} failed"
+            logger.exception(msg)
+            raise CrawlerDockerError(message=msg) from e
         except Exception as e:
-            message = f"Unexpected error during {operation}: {e}"
-            logger.error(message)
-            raise CrawlerError(message) from e
+            msg = f"Unexpected error during {operation}"
+            logger.exception(msg)
+            raise CrawlerError(message=msg) from e
 
     # region Prepare Config
     @classmethod
@@ -211,8 +212,8 @@ class Crawler:
 
         except HTTPError as e:
             reason = f"Could not validate crawl. Failed to extract URLs from {url}: {e}"
-            logger.error(reason)
-            raise CrawlerValidationHTTPError(message=reason)
+            logger.exception(reason)
+            raise CrawlerValidationHTTPError(message=reason) from e
 
         if extraction_result["page_is_noindex"] and extraction_result["page_is_nofollow"]:
             reason = f"Validation failed: Seed URL {url} is marked with both 'noindex' and 'nofollow'."
@@ -223,7 +224,10 @@ class Crawler:
         logger.debug(f"Found {num_urls} URLs to crawl (excluding nofollow links).")
 
         if num_urls > max_child_page_limit:
-            reason = f"Could not validate crawl. Excessive child URLs ({num_urls} > {max_child_page_limit}). Validate that you're crawling a specific enough URL or consider setting max_child_page_limit."
+            reason = f"""
+            Could not validate crawl. Excessive child URLs ({num_urls} > {max_child_page_limit}).
+            Validate that you're crawling a specific enough URL or consider setting max_child_page_limit.
+            """
             logger.error(reason)
             raise CrawlerValidationTooManyURLsError(message=reason)
 

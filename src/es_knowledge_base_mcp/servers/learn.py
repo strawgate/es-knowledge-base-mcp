@@ -8,7 +8,7 @@ from fastmcp.contrib.mcp_mixin import MCPMixin, mcp_tool
 from fastmcp.utilities.logging import get_logger
 from pydantic import Field
 
-from es_knowledge_base_mcp.clients.crawl import Crawler, CrawlerSettings
+from es_knowledge_base_mcp.clients.crawl import Crawler
 from es_knowledge_base_mcp.clients.web import extract_urls_from_webpage
 from es_knowledge_base_mcp.errors.crawler import CrawlerError, CrawlerValidationError
 from es_knowledge_base_mcp.errors.knowledge_base import KnowledgeBaseCreationError
@@ -22,7 +22,7 @@ from es_knowledge_base_mcp.interfaces.knowledge_base import (
 )
 from es_knowledge_base_mcp.models.base import ExportableModel
 from es_knowledge_base_mcp.models.constants import BASE_LOGGER_NAME
-from es_knowledge_base_mcp.models.settings import ElasticsearchSettings
+from es_knowledge_base_mcp.models.settings import CrawlerSettings, ElasticsearchSettings
 
 logger = get_logger(BASE_LOGGER_NAME).getChild("learn")
 
@@ -173,7 +173,7 @@ class LearnServer(MCPMixin):
         exclude_paths = learn_web_documentation_proto.exclude_paths
 
         try:
-            crawl_parameters: dict[str, Any] = await Crawler.validate_crawl(url)
+            crawl_parameters: dict[str, Any] = await Crawler.validate_crawl(url, max_child_page_limit)
         except CrawlerValidationError as e:
             msg = f"Validation failed for URL {url}: {e}"
             logger.exception(msg)

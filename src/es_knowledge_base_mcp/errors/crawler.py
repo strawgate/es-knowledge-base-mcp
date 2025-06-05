@@ -6,6 +6,10 @@ class CrawlerError(KnowledgeBaseMCPBaseError):
 
     msg: str = "Unknown Crawler error"
 
+    def __init__(self, message: str):
+        super().__init__(message)
+        self.msg = message
+
 
 class CrawlerValidationError(CrawlerError):
     """Raised when the crawler encounters an error validating the URL to crawl."""
@@ -45,4 +49,3 @@ class CrawlerDockerContainerError(CrawlerDockerError):
 
 class CrawlerValidationNoIndexNofollowError(CrawlerValidationError):
     """Raised when a seed URL is marked with both noindex and nofollow."""
-

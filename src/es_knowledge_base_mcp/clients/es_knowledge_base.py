@@ -137,7 +137,7 @@ class ElasticsearchKnowledgeBaseClient(KnowledgeBaseClient):
         logger.debug("Elasticsearch connection established successfully.")
 
     @asynccontextmanager
-    async def error_handler(self, operation: str) -> AsyncGenerator[None, None]:  # noqa: C901, PLR0912
+    async def error_handler(self, operation: str) -> AsyncGenerator[None, None]:  # noqa: PLR0912
         """Context manager for Elasticsearch client.
 
         Raises:
@@ -417,13 +417,15 @@ class ElasticsearchKnowledgeBaseClient(KnowledgeBaseClient):
         operations = []
 
         for phrase in phrases:
-            operations.extend((
-                {"index": self.index_pattern},
-                self._phrase_to_query(phrase, knowledge_base_names=knowledge_base_names, size=results, fragments=fragments),
-            ))
+            operations.extend(
+                (
+                    {"index": self.index_pattern},
+                    self._phrase_to_query(phrase, knowledge_base_names=knowledge_base_names, size=results, fragments=fragments),
+                )
+            )
 
         async with self.error_handler("multi-search operation"):
-            msearch_results = await self.elasticsearch_client.msearch(searches=operations)
+            msearch_results = await self.elasticsearch_client.options(retry_on_timeout=True).msearch(searches=operations)
 
         if not msearch_results or "responses" not in msearch_results:
             msg = "No results returned from multi-search operation."
@@ -439,6 +441,7 @@ class ElasticsearchKnowledgeBaseClient(KnowledgeBaseClient):
                 error_message = "No hits found in one of the search responses."
                 search_results.append(KnowledgeBaseSearchResultError(phrase=phrase, error=error_message))
                 logger.warning(error_message)
+                logger.warning(response)
                 continue
 
             summaries: list[PerKnowledgeBaseSummary] = [
@@ -512,10 +515,12 @@ class ElasticsearchKnowledgeBaseClient(KnowledgeBaseClient):
         now = round(datetime.now(tz=UTC).timestamp() * 1000)
 
         for document_proto in documents:
-            operations.extend((
-                {"index": {"_index": index_name}},
-                {"@timestamp": now, "title": document_proto.title, "body": document_proto.content},
-            ))
+            operations.extend(
+                (
+                    {"index": {"_index": index_name}},
+                    {"@timestamp": now, "title": document_proto.title, "body": document_proto.content},
+                )
+            )
 
         if not operations:
             msg = f"Requested to insert documents into knowledge base '{knowledge_base.name}', but no documents provided."

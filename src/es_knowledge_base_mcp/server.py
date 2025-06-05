@@ -20,7 +20,6 @@ from es_knowledge_base_mcp.interfaces.knowledge_base import KnowledgeBase
 from es_knowledge_base_mcp.models.constants import BASE_LOGGER_NAME
 from es_knowledge_base_mcp.models.settings import CrawlerSettings, DocsManagerSettings, ElasticsearchSettings, MemoryServerSettings
 from es_knowledge_base_mcp.servers.ask import AskServer
-from es_knowledge_base_mcp.servers.fetch import FetchServer
 from es_knowledge_base_mcp.servers.learn import LearnServer
 from es_knowledge_base_mcp.servers.manage import ManageServer
 from es_knowledge_base_mcp.servers.remember import MemoryServer
@@ -69,7 +68,7 @@ class RootContext(BaseModel):
     memory_context: MemoryContext = MemoryContext(project_name=None, knowledge_base=None)
 
 
-def yaml_serializer(obj: Any) -> str:  # noqa: ANN401
+def yaml_serializer(obj: Any) -> str:
     """Serialize to YAML for Pydantic models.
 
     Returns:
@@ -85,7 +84,7 @@ def yaml_serializer(obj: Any) -> str:  # noqa: ANN401
 
 
 @asynccontextmanager
-async def root_lifespan(_: FastMCP) -> AsyncGenerator[RootContext, None]:  # noqa: RUF029
+async def root_lifespan(_: FastMCP) -> AsyncGenerator[RootContext, None]:
     """Lifespan context manager for the root FastMCP server.
 
     Yields:
@@ -123,26 +122,6 @@ async def setup_learn_server(
     server.mount(prefix="learn", server=learn_mcp)
 
     return learn_mcp
-
-
-def setup_fetch_server(server: FastMCP) -> FastMCP:
-    """Set up the Fetch Server with the provided FastMCP server.
-
-    This function registers the FetchServer with the given FastMCP instance,
-    allowing it to handle fetching operations within the MCP framework.
-
-    Returns:
-        FastMCP: The configured FetchServer instance.
-    """
-    fetch_mcp = FastMCP(name="fetch-mcp", tool_serializer=yaml_serializer)
-
-    fetch_server = FetchServer()
-
-    fetch_server.register_tools(mcp_server=fetch_mcp)
-
-    server.mount(prefix="fetch", server=fetch_mcp)
-
-    return fetch_mcp
 
 
 def setup_manage_server(server: FastMCP, knowledge_base_client: ElasticsearchKnowledgeBaseClient) -> FastMCP:
@@ -240,15 +219,13 @@ async def main() -> None:
         )
 
     # Begin initializing MCP Servers
-    root_mcp = FastMCP(name="knowledge-base-mcp",  lifespan=root_lifespan, tool_serializer=yaml_serializer)
+    root_mcp = FastMCP(name="knowledge-base-mcp", lifespan=root_lifespan, tool_serializer=yaml_serializer)
 
     setup_manage_server(server=root_mcp, knowledge_base_client=knowledge_base_client)
 
     setup_memory_server(server=root_mcp, memory_server_settings=settings.memory, knowledge_base_client=knowledge_base_client)
 
     setup_ask_server(server=root_mcp, knowledge_base_client=knowledge_base_client)
-
-    setup_fetch_server(server=root_mcp)
 
     await setup_learn_server(
         server=root_mcp,

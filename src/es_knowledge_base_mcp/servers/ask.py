@@ -30,15 +30,15 @@ class QuestionAnswerStyle(StrEnum):
         Returns:
             An integer representing the number of results to return based on the answer style.
             - CONCISE: 1 result
-            - NORMAL: 4 results
-            - COMPREHENSIVE: 8 results
-            - EXHAUSTIVE: 12 results
+            - NORMAL: 3 results
+            - COMPREHENSIVE: 6 results
+            - EXHAUSTIVE: 9 results
         """
         return {
             self.CONCISE: 1,
-            self.NORMAL: 4,
-            self.COMPREHENSIVE: 8,
-            self.EXHAUSTIVE: 12,
+            self.NORMAL: 3,
+            self.COMPREHENSIVE: 6,
+            self.EXHAUSTIVE: 9,
         }[self]
 
 
@@ -102,11 +102,13 @@ class AskServer(MCPMixin):
     @mcp_tool()
     async def questions_for_kb(
         self,
+        knowledge_base_names: list[str],
         questions: list[str] = QUESTIONS_FIELD,
-        knowledge_base_names: list[str] = Field(description="Names of the Knowledge Bases", examples=[["my_docs"]]),
         answer_style: QuestionAnswerStyle = ANSWER_STYLE_FIELD,
     ) -> list[KnowledgeBaseSearchResultTypes]:
-        """Ask questions of a specific knowledge base.
+        """Ask questions of a specific knowledge base.  Ask questions in plain English and the knowledge base
+        will return the most relevant results. You can ask as many questions as you want, as often
+        as you want. The knowledge base will return the most relevant results for each question.
 
         Returns:
             A list of KnowledgeBaseSearchResultTypes objects, where each object contains the answer to a question.

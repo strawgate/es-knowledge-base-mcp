@@ -20,8 +20,7 @@ dependencies = [
     "requests>=2.32.3,<3.0.0",
     "beautifulsoup4>=4.12.3,<5.0.0",
     "async-lru (>=2.0.5,<3.0.0)",
-    "markdownify (>=1.1.0,<2.0.0)",
-    "docling",
+    "markdownify>=1.1.0,<2.0.0",
 ]
 
 [build-system]
@@ -47,43 +46,58 @@ testpaths = ["tests"]
 packages = [
     { include = "es_knowledge_base_mcp", from = "src" },
 ]
-
 [tool.ruff]
-line-length = 140
 target-version = "py312"
 respect-gitignore = true
-extend-exclude = [
-    ".git",
-    ".mypy_cache",
-    ".pytest_cache",
-    ".ruff_cache",
-    ".venv",
-    "venv",
-    "__pycache__",
-    "**/__pycache__/**",
-    "build",
-    "dist",
-    "reference"
+lint.fixable = ["ALL"]
+lint.ignore = [
+    "COM812",
+    "PLR0913", # Too many arguments, MCP Servers have a lot of arguments, OKAY?!
+]
+lint.extend-select = [
+    "A",
+    "ARG",
+    "B",
+    "C4",
+    "COM",
+    "DTZ",
+    "E",
+    "EM",
+    "F",
+    "FURB",
+    "I",
+    "LOG",
+    "N",
+    "PERF",
+    "PIE",
+    "PLR",
+    "PLW",
+    "PT",
+    "PTH",
+    "Q",
+    "RET",
+    "RSE",
+    "RUF",
+    "S",
+    "SIM",
+    "TC",
+    "TID",
+    "TRY",
+    "UP",
+    "W",
 ]
 
+line-length = 140
 
-[tool.ruff.lint]
-select = ["ALL"]
-ignore = [
-    "D203", # incorrect-blank-line-before-class
-    "D213",  # multi-line-summary-second-line
-    "D413",  # missing-blank-line-after-last-section
-    "COM812", # dunno
-    "FBT001", # bool params
-    "FBT002", # bool params
-    "PLR6301", # unused Self
-    "B008", # Function call in params
-    "CPY001", # No copyright header
-    "TRY003", # long strings outside exceptions class
-    "PGH003", # Require specific exclusions
+[tool.ruff.lint.extend-per-file-ignores]
+"**/tests/*.py" = [
+    "S101", # Ignore asserts
+    "DTZ005", # Ignore datetime.UTC
+    "PLR2004", # Ignore magic values
 ]
+"**/references/*" = ["ALL"]
+"template/*" = ["ALL"]
 
-fixable = ["ALL"]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 10
