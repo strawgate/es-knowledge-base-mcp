@@ -106,6 +106,9 @@ async def start_container_with_files(
 
     logger.debug(f"Preparing container '{container_name or 'unnamed'}' for image '{image_name}' with labels {labels}")
 
+    async with handle_errors("image pull"):
+        await docker_client.images.pull(image_name)
+
     async with handle_errors("container setup"):
         container = await docker_client.containers.create(config=container_config, name=container_name)
         logger.debug(f"Created container '{container.id}'.")
