@@ -6,9 +6,8 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from copy import deepcopy
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from elastic_transport import ObjectApiResponse
 from elasticsearch import (
     ApiError,
     AsyncElasticsearch,
@@ -44,6 +43,9 @@ from es_knowledge_base_mcp.interfaces.knowledge_base import (
 )
 from es_knowledge_base_mcp.models.constants import CRAWLER_INDEX_MAPPING
 from es_knowledge_base_mcp.models.settings import KnowledgeBaseServerSettings
+
+if TYPE_CHECKING:
+    from elastic_transport import ObjectApiResponse
 
 logger = get_logger("knowledge-base-mcp.elasticsearch")
 
