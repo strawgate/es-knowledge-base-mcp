@@ -1,5 +1,6 @@
 """Elasticsearch client for managing and searching knowledge bases."""
 
+import asyncio
 import uuid
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -7,6 +8,7 @@ from copy import deepcopy
 from datetime import UTC, datetime
 from typing import Any
 
+from elastic_transport import ObjectApiResponse
 from elasticsearch import (
     ApiError,
     AsyncElasticsearch,
@@ -47,10 +49,7 @@ logger = get_logger("knowledge-base-mcp.elasticsearch")
 
 # endregion Index Handling
 
-
 logger = get_logger("knowledge-base-mcp.knowledge-base")
-
-HITS_CACHE_BUST_INTERVAL = 60  # seconds
 
 
 class ElasticsearchError(KnowledgeBaseError):
@@ -94,8 +93,6 @@ class ElasticsearchKnowledgeBaseClient(KnowledgeBaseClient):
         self.index_pattern = settings.base_index_pattern
 
         self.elasticsearch_client = elasticsearch_client
-
-        self._last_cache_bust = datetime.now(tz=UTC)
 
     # region Error Handling
 
@@ -424,13 +421,33 @@ class ElasticsearchKnowledgeBaseClient(KnowledgeBaseClient):
                 )
             )
 
-        async with self.error_handler("multi-search operation"):
-            msearch_results = await self.elasticsearch_client.options(retry_on_timeout=True).msearch(searches=operations)
+        msearch_results: ObjectApiResponse | None = None
+
+        for i in range(3):
+            async with self.error_handler("multi-search operation"):
+                msearch_results = await self.elasticsearch_client.options(retry_on_timeout=True).msearch(searches=operations)
+
+            if not msearch_results or "responses" not in msearch_results:
+                msg = f"No results returned from multi-search operation {msearch_results}. Retrying... ({i + 1}/3)"
+                logger.warning(msg)
+                continue
+
+            if any(response.get("status") == 408 for response in msearch_results["responses"]):  # noqa: PLR2004
+                msg = f"One or more responses returned a 408 status {msearch_results}. Sleeping for 30 seconds and retrying... ({i + 1}/3)"
+                logger.warning(msg)
+                await asyncio.sleep(30)
+                continue
+
+            if any(response.get("status") != 200 for response in msearch_results["responses"]):  # noqa: PLR2004
+                msg = f"One or more responses returned a non-200 status {msearch_results}. Retrying... ({i + 1}/3)"
+                logger.warning(msg)
+                continue
+
+            break
 
         if not msearch_results or "responses" not in msearch_results:
-            msg = "No results returned from multi-search operation."
-            logger.warning(msg)
-            return []
+            msg = "No response returned from multi-search operation."
+            raise KnowledgeBaseSearchError(msg)
 
         search_results: list[KnowledgeBaseSearchResultTypes] = []
 
@@ -438,10 +455,9 @@ class ElasticsearchKnowledgeBaseClient(KnowledgeBaseClient):
             phrase = phrases[i]
 
             if not response.get("hits", {}).get("hits"):
-                error_message = "No hits found in one of the search responses."
+                error_message = f"No hits found in one of the search responses. {response}"
                 search_results.append(KnowledgeBaseSearchResultError(phrase=phrase, error=error_message))
                 logger.warning(error_message)
-                logger.warning(response)
                 continue
 
             summaries: list[PerKnowledgeBaseSummary] = [

@@ -94,6 +94,7 @@ Add the following configuration block to your `mcpServers` object:
         "ES_PASSWORD": "YOUR_ELASTICSEARCH_PASSWORD",
       },
       "alwaysAllow": [],
+      "timeout": 120,
       "disabled": false
     }
 ```

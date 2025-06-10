@@ -47,6 +47,8 @@ class LoggingSettings(BaseSettings):
         """Configure logging based on the settings."""
         logging.basicConfig(level=self.log_level, format=self.log_format, filename=self.log_file, filemode="a", force=True)
 
+        logging.getLogger("mcp").setLevel("WARNING")
+
         return logger
 
 
